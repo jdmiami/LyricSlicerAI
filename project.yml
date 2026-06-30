@@ -50,7 +50,7 @@ targets:
             AudioComponents:
               - description: LyricSlicer AI
                 manufacturer: LrcS
-                name: LyricSlicer: AI Slicer
+                name: "LyricSlicer: AI Slicer"
                 subtype: slce
                 type: aumu
                 version: 1.0.0
