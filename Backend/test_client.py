@@ -17,8 +17,9 @@ def test_api(server_url: str, audio_path: str):
     # Open the file and send the POST request
     with open(audio_path, 'rb') as f:
         files = {'file': (os.path.basename(audio_path), f, 'audio/wav')}
+        headers = {'Bypass-Tunnel-Reminder': 'true'}
         try:
-            response = requests.post(f"{server_url}/align", files=files)
+            response = requests.post(f"{server_url}/align", files=files, headers=headers)
             response.raise_for_status()
             
             # Parse the JSON response
@@ -27,12 +28,12 @@ def test_api(server_url: str, audio_path: str):
             end_time = time.time()
             duration = end_time - start_time
             
-            print(f"\n✅ Success! Processed in {duration:.2f} seconds.")
+            print(f"\n[SUCCESS] Processed in {duration:.2f} seconds.")
             print("\n--- Response Payload ---")
             print(json.dumps(result, indent=2))
             
         except requests.exceptions.RequestException as e:
-            print(f"\n❌ Request failed: {e}")
+            print(f"\n[ERROR] Request failed: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Server response: {e.response.text}")
 
