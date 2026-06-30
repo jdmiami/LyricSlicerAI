@@ -2,9 +2,9 @@ name: iOS Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
   workflow_dispatch:
 
 jobs:
@@ -22,26 +22,26 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      - name: Build for iOS Simulator
+      - name: Build for Physical iPad (Unsigned)
         run: |
           set -o pipefail
           xcodebuild clean build \
             -project LyricSlicerAI.xcodeproj \
             -scheme LyricSlicerApp \
-            -destination 'platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation)' \
+            -destination 'generic/platform=iOS' \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty
 
-      - name: Compress App Bundle
+      - name: Package .IPA for Sideloading
         run: |
           mkdir -p Payload
           # Find the built .app in the derived data or build directory
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "LyricSlicerApp.app" -type d | head -n 1)
           if [ -d "$APP_PATH" ]; then
             cp -r "$APP_PATH" Payload/
-            zip -r LyricSlicerAI_Simulator.zip Payload
+            zip -qr LyricSlicerAI.ipa Payload
           else
             echo "App bundle not found"
             exit 1
@@ -50,5 +50,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LyricSlicerAI-Simulator-Build
-          path: LyricSlicerAI_Simulator.zip
+          name: LyricSlicerAI-iPad-Build
+          path: LyricSlicerAI.ipa

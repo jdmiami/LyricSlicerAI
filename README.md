@@ -15,7 +15,18 @@ This repository contains the scaffolded codebase for the iPadOS application and 
   - **`Models/`**: Data models like `WordSlice`.
   - **`AI/`**: The Strategy Pattern implementation for Dual-Engine inference (`LocalEngine` for WhisperKit, `CloudEngine` for API).
 
-## Building
+## Building (No Mac Required)
+
+We have configured a **GitHub Actions CI/CD pipeline** to compile the iOS App and AUv3 plugin automatically in the cloud whenever code is pushed.
+
+1. Go to the **Actions** tab on your GitHub repository.
+2. Click the latest successful `iOS Build` workflow run.
+3. Scroll down to **Artifacts** and download the `LyricSlicerAI-iPad-Build` zip file.
+4. Unzip it to get your `LyricSlicerAI.ipa` file.
+5. Because this is an unsigned IPA (to avoid needing a paid $99/yr Apple Developer Account), you can install it onto your physical iPad using a free sideloading tool like **AltStore** or **Sideloadly** directly from your Windows PC.
+6. Once installed on your iPad, you can test the "Cyber-Glass" standalone app, or open **Logic Pro for iPad** and load the LyricSlicer AUv3 plugin!
+
+## Building (Manual)
 
 Because this project uses native iOS frameworks (`AVFoundation`, `AudioToolbox`, `SwiftUI`), it must be built using Xcode on a macOS machine.
 
