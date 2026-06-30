@@ -1,35 +1,53 @@
 import Foundation
+import CoreGraphics
 
 /// Cloud Engine (Pro Tier) leveraging Python FastAPI and WhisperX for sample-accurate alignment
 public class CloudEngine: TranscriptionEngine {
     
-    // Placeholder for actual Cloud API endpoint
-    private let apiEndpoint = URL(string: "https://api.lyricslicer.com/v1/align")!
+    // The configurable locatunnel URL 
+    private let apiURL: String
     
-    public init() {}
+    public init(apiURL: String) {
+        self.apiURL = apiURL
+    }
     
     public func transcribeAudio(at audioFileURL: URL) async throws -> [WordSlice] {
-        print("Starting Pro Cloud Transcription via WhisperX API...")
+        guard !apiURL.isEmpty, let url = URL(string: "\(apiURL)/align") else {
+            throw NSError(domain: "CloudEngine", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid or empty API URL. Please set the Colab Localtunnel URL."])
+        }
         
-        // 1. Prepare Multipart Form Request
-        var request = URLRequest(url: apiEndpoint)
+        print("Starting Pro Cloud Transcription via WhisperX API to \(url.absoluteString)...")
+        
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        // Localtunnel bypass header
+        request.setValue("true", forHTTPHeaderField: "Bypass-Tunnel-Reminder")
+        
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
-        // --- Mocking Cloud API inference delay (10-15 seconds boot masked by UI) ---
-        try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds mock delay
+        // Build multipart body
+        var body = Data()
+        let filename = audioFileURL.lastPathComponent
+        let mimeType = "audio/wav"
+        let audioData = try Data(contentsOf: audioFileURL)
         
-        // In a real implementation:
-        // Use URLSession.shared.upload(for: request, from: bodyData)
-        // Parse the JSON response into [WordSlice]
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         
-        return [
-            WordSlice(text: "This", startMs: 0, endMs: 295.5),
-            WordSlice(text: "is", startMs: 300.2, endMs: 498.1),
-            WordSlice(text: "the", startMs: 502.0, endMs: 699.9),
-            WordSlice(text: "cloud", startMs: 701.5, endMs: 1098.2),
-            WordSlice(text: "engine.", startMs: 1105.0, endMs: 1605.5)
-        ]
+        // Execute request
+        let (data, response) = try await URLSession.shared.upload(for: request, from: body)
+        
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "CloudEngine", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "API Error \(httpResponse.statusCode): \(errorMsg)"])
+        }
+        
+        // Decode JSON
+        let decoder = JSONDecoder()
+        return try decoder.decode([WordSlice].self, from: data)
     }
 }

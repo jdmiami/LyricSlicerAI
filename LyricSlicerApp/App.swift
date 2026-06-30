@@ -16,4 +16,5 @@ struct LyricSlicerApp: App {
 // Mock Subscription Manager for standalone app
 class SubscriptionManager: ObservableObject {
     @Published var isPro: Bool = false
+    @Published var colabURL: String = ""
 }

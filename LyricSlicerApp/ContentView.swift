@@ -20,17 +20,28 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(.gray)
                     
+                    if subscriptionManager.isPro {
+                        TextField("Paste Colab Localtunnel URL (https://...loca.lt)", text: $subscriptionManager.colabURL)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                    }
+                    
                     Spacer()
                     
                     // Sandbox for testing the AUv3 UI within the host app
-                    SlicerView()
+                    SlicerView(isPro: subscriptionManager.isPro, colabURL: subscriptionManager.colabURL)
                         .cornerRadius(12)
                         .padding()
                     
                     Spacer()
                     
                     Button(action: {
-                        subscriptionManager.isPro.toggle()
+                        withAnimation {
+                            subscriptionManager.isPro.toggle()
+                        }
                     }) {
                         Text(subscriptionManager.isPro ? "Downgrade to Free" : "Upgrade to Pro")
                             .padding()
