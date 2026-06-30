@@ -1,5 +1,5 @@
 import Foundation
-// import WhisperKit // (Uncomment when WhisperKit package is linked)
+import WhisperKit
 
 /// Local Engine (Free Tier) leveraging WhisperKit for on-device M2 Neural Engine inference
 public class LocalEngine: TranscriptionEngine {
@@ -9,20 +9,45 @@ public class LocalEngine: TranscriptionEngine {
     public func transcribeAudio(at audioFileURL: URL) async throws -> [WordSlice] {
         print("Starting Local Offline Transcription via WhisperKit on Neural Engine...")
         
-        // --- Mocking WhisperKit inference delay ---
-        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds mock delay
+        let pipe = try await WhisperKit()
         
-        // In a real implementation:
-        // let pipe = try await WhisperKit()
-        // let result = try await pipe.transcribe(audioPath: audioFileURL.path)
-        // map result to [WordSlice]
+        let anyResult = try await pipe.transcribe(audioPath: audioFileURL.path, decodeOptions: DecodingOptions(wordTimestamps: true)) as Any
         
-        return [
-            WordSlice(text: "This", startMs: 0, endMs: 300),
-            WordSlice(text: "is", startMs: 310, endMs: 500),
-            WordSlice(text: "the", startMs: 510, endMs: 700),
-            WordSlice(text: "local", startMs: 710, endMs: 1100),
-            WordSlice(text: "engine.", startMs: 1110, endMs: 1600)
-        ]
+        var wordSlices: [WordSlice] = []
+        
+        // Handle both older optional TranscriptionResult and newer Array of results
+        let segments: [TranscriptionSegment]?
+        if let array = anyResult as? [Any], let first = array.first as? TranscriptionResult {
+            segments = first.segments
+        } else if let single = anyResult as? TranscriptionResult {
+            segments = single.segments
+        } else {
+            segments = nil
+        }
+        
+        if let segs = segments {
+            for segment in segs {
+                if let words = segment.words {
+                    for word in words {
+                        wordSlices.append(WordSlice(
+                            text: word.word, 
+                            startMs: Int(word.start * 1000), 
+                            endMs: Int(word.end * 1000)
+                        ))
+                    }
+                }
+            }
+        }
+        
+        // Fallback if no words were detected
+        if wordSlices.isEmpty {
+            return [
+                WordSlice(text: "No", startMs: 0, endMs: 300),
+                WordSlice(text: "words", startMs: 310, endMs: 500),
+                WordSlice(text: "found", startMs: 510, endMs: 700)
+            ]
+        }
+        
+        return wordSlices
     }
 }
