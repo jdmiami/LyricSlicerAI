@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>LyricSlicer AI</title>
+  <title>LyricSlicer AI Pro DAW</title>
   
   <!-- Apple PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="LyricSlicer">
+  <meta name="apple-mobile-web-app-title" content="LyricSlicer Pro">
   <link rel="apple-touch-icon" href="icon.png">
   
   <link rel="manifest" href="manifest.json">
@@ -17,10 +17,14 @@
   <!-- Tailwind CSS CDN for structure -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   
   <!-- GSAP CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   
   <script>
     tailwind.config = {
@@ -28,176 +32,225 @@
         extend: {
           fontFamily: {
             sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
           },
         },
       },
     }
   </script>
 </head>
-<body class="bg-[#050508] text-white font-sans antialiased overflow-x-hidden min-h-screen pb-12 opacity-0">
-  
-  <!-- Glow Accents -->
-  <div class="fixed top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-blue-500/10 blur-[150px] pointer-events-none"></div>
-  <div class="fixed bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-purple-500/10 blur-[150px] pointer-events-none"></div>
+<body class="bg-[#0b0c10] text-[#c5c6c7] font-sans antialiased overflow-x-hidden min-h-screen flex flex-col opacity-0">
 
-  <!-- Header -->
-  <header class="border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center space-x-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-        </svg>
-      </div>
-      <div>
-        <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">LyricSlicer AI</h1>
-        <span class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">PWA for iPad</span>
-      </div>
-    </div>
+  <!-- Left Accent Glow -->
+  <div class="fixed top-0 left-0 w-[40vw] h-[40vw] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none z-0"></div>
+  <div class="fixed bottom-0 right-0 w-[40vw] h-[40vw] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none z-0"></div>
+
+  <!-- Main DAW Wrapper -->
+  <div class="flex-1 flex overflow-hidden z-10">
     
-    <!-- Engine Toggles -->
-    <div class="flex items-center space-x-4">
-      <div class="flex bg-white/5 rounded-lg p-1 border border-white/5 space-x-1">
-        <button id="btn-local-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 bg-blue-600 text-white shadow-md">Local AI</button>
-        <button id="btn-cloud-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 text-gray-400 hover:text-white">Cloud GPU</button>
-        <button id="btn-manual-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 text-gray-400 hover:text-white">Manual Grid</button>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-4xl mx-auto px-6 mt-8 space-y-6">
-    <!-- Local AI Model Selector -->
-    <div id="local-config-container" class="glass-card p-6 border border-white/5 rounded-2xl space-y-3">
-      <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-400">Local AI Engine Settings</h3>
-      <div class="flex items-center space-x-3">
-        <span class="text-xs text-gray-400">Choose Whisper Model:</span>
-        <select id="local-model-select" class="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-          <option value="Xenova/whisper-tiny">Whisper Tiny (75MB - Fastest)</option>
-          <option value="Xenova/whisper-base">Whisper Base (140MB - Balanced)</option>
-          <option value="Xenova/whisper-small">Whisper Small (460MB - Accurate)</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Colab Config (Shown only for Cloud Mode) -->
-    <div id="colab-config-container" class="hidden glass-card p-6 border border-white/5 rounded-2xl space-y-4">
-      <h3 class="text-sm font-semibold uppercase tracking-wider text-purple-400">Cloud Configuration</h3>
-      <div class="flex space-x-3">
-        <input type="text" id="colab-url-input" placeholder="Enter Colab Localtunnel URL (e.g. https://xxxx.loca.lt)" class="flex-1 bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white">
-      </div>
-    </div>
-
-    <!-- Manual Grid Settings (Shown only for Manual Mode) -->
-    <div id="manual-config-container" class="hidden glass-card p-6 border border-white/5 rounded-2xl space-y-4">
-      <h3 class="text-sm font-semibold uppercase tracking-wider text-orange-400">Manual Grid Settings</h3>
-      <div class="flex items-center space-x-4">
-        <span class="text-xs text-gray-400">Slice Duration:</span>
-        <select id="manual-slice-select" class="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors cursor-pointer">
-          <option value="0.5">0.5 Seconds</option>
-          <option value="1.0" selected>1.0 Second</option>
-          <option value="2.0">2.0 Seconds</option>
-          <option value="4.0">4.0 Seconds</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Drop Zone / Loader -->
-    <div id="drop-zone" class="glass-card border-2 border-dashed border-white/10 hover:border-blue-500/50 rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[220px]">
-      <input type="file" id="audio-file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg,audio/*" class="hidden">
-      <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 transition-transform duration-300 drop-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-400" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-      </div>
-      <h2 class="text-lg font-semibold text-white">Load Vocal Audio Stem</h2>
-      <p class="text-sm text-gray-500 mt-2">Drag and drop or tap to choose a file (.mp3, .wav, .m4a)</p>
-      <div id="loaded-file-name" class="mt-4 hidden px-3 py-1 bg-blue-500/10 text-blue-400 text-xs font-semibold rounded-full border border-blue-500/20"></div>
-    </div>
-
-    <!-- Progress Indicator Container -->
-    <div id="progress-container" class="hidden glass-card p-6 border border-white/5 rounded-2xl space-y-3">
-      <div class="flex justify-between items-center text-sm font-semibold">
-        <span id="progress-status" class="text-gray-400">Loading AI Engine...</span>
-        <span id="progress-percentage" class="text-blue-400">0%</span>
-      </div>
-      <div class="w-full bg-white/5 rounded-full h-2.5 overflow-hidden border border-white/5">
-        <div id="progress-bar-fill" class="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
-      </div>
-      <p id="local-engine-warning" class="text-[11px] text-yellow-500/80 leading-normal hidden">Note: The very first run downloads a lightweight 75MB model into Safari's local cache. This runs fully offline subsequently.</p>
-    </div>
-
-    <!-- Interactive Lyrics Workspace -->
-    <div id="workspace-container" class="hidden space-y-4">
-      <div class="flex justify-between items-center">
-        <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-400">Interactive Vocal Slices</h3>
-        <p class="text-xs text-gray-500">Tap word to toggle mute/erase (Lock timing)</p>
+    <!-- Sidebar: Firestore Project History -->
+    <aside class="w-80 bg-[#14151a]/95 border-r border-[#1f2833]/50 flex flex-col hidden md:flex">
+      <div class="p-6 border-b border-[#1f2833]/50 flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20">
+          <svg class="w-4.5 h-4.5 text-white" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-sm font-bold tracking-wider text-white uppercase">Vocal Projects</h2>
+          <p class="text-[10px] text-gray-500 font-semibold tracking-wider uppercase">Firestore Database</p>
+        </div>
       </div>
       
-      <!-- High-End Waveform Zoom & Scroll Editor -->
-      <div class="glass-card p-4 border border-white/5 rounded-2xl space-y-4">
-        <!-- Canvas Waveform & Interactive Playhead -->
-        <div id="waveform-container">
-          <canvas id="waveform-canvas"></canvas>
-          <div id="waveform-playhead"></div>
-        </div>
+      <!-- History List -->
+      <div id="history-list" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        <div class="text-center py-8 text-xs text-gray-500">Loading database history...</div>
       </div>
+    </aside>
 
-      <!-- Scrolling Lyrics Timeline Grid -->
-      <div class="glass-card p-6 border border-white/5 rounded-2xl">
-        <div id="slices-timeline" class="flex flex-wrap gap-2.5 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
-          <!-- Dynamic words chips injected here -->
-        </div>
-      </div>
-
-      <!-- Playback Controls -->
-      <div class="glass-card p-6 border border-white/5 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+    <!-- Main Workspace Area -->
+    <div class="flex-1 flex flex-col overflow-hidden bg-[#0d0e12]">
+      
+      <!-- Top Transport / Header controls -->
+      <header class="bg-[#14151a]/90 border-b border-[#1f2833]/50 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <!-- Title -->
         <div class="flex items-center space-x-3">
-          <button id="btn-play" class="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-            </svg>
-          </button>
-          <button id="btn-stop" class="w-12 h-12 rounded-full bg-white/5 text-gray-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-            </svg>
-          </button>
-          
-          <div class="text-xs text-gray-500 font-semibold px-2">
-            <span id="playback-timer">00:00</span> / <span id="total-timer">00:00</span>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center">
+              LyricSlicer <span class="text-cyan-400 font-extrabold ml-1.5 text-sm px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30">PRO DAW</span>
+            </h1>
+            <p id="current-project-title" class="text-xs text-gray-500 truncate max-w-[200px] mt-0.5">No project loaded</p>
           </div>
         </div>
-        
-        <!-- Live Playhead Progress -->
-        <div class="flex-1 max-w-[200px] flex items-center space-x-3">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.983 5.983 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.982 3.982 0 0013 10a3.982 3.982 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
-          </svg>
-          <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.8" class="w-full accent-blue-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer">
+
+        <!-- Mode Switches -->
+        <div class="flex items-center bg-black/60 rounded-xl p-1 border border-white/5 space-x-1">
+          <button id="btn-local-mode" class="px-4 py-2 rounded-lg text-xs font-bold transition-all duration-300 bg-blue-600 text-white shadow-md">Local AI</button>
+          <button id="btn-cloud-mode" class="px-4 py-2 rounded-lg text-xs font-bold transition-all duration-300 text-gray-400 hover:text-white">Cloud GPU</button>
+          <button id="btn-manual-mode" class="px-4 py-2 rounded-lg text-xs font-bold transition-all duration-300 text-gray-400 hover:text-white">Manual Grid</button>
+        </div>
+      </header>
+
+      <!-- Parameter Settings Panel (Dynamic based on selected mode) -->
+      <section class="px-6 py-4 bg-[#14151a]/40 border-b border-[#1f2833]/30">
+        <!-- Local Config -->
+        <div id="local-config-container" class="flex flex-wrap items-center gap-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-cyan-400">Local AI Options</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-500">Whisper Model:</span>
+            <select id="local-model-select" class="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer">
+              <option value="Xenova/whisper-tiny">Whisper Tiny (75MB - Fast)</option>
+              <option value="Xenova/whisper-base">Whisper Base (140MB - Balanced)</option>
+              <option value="Xenova/whisper-small">Whisper Small (460MB - Precise)</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Export & Share -->
-        <div class="flex items-center space-x-3">
-          <button id="btn-export" class="px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-transform flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
-            </svg>
-            <span>Export Stem</span>
-          </button>
+        <!-- Cloud Config -->
+        <div id="colab-config-container" class="hidden flex flex-wrap items-center gap-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-purple-400">Cloud GPU Options</span>
+          <input type="text" id="colab-url-input" placeholder="Google Colab Localtunnel URL" class="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 w-64">
           
-          <a id="share-link" class="hidden px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l4.894-2.447m0 0A3.001 3.001 0 1017 8c0 .11-.006.22-.018.328l-4.895 2.447m0 0a3.001 3.001 0 11-4.829 3.478l-4.894-2.447m4.894 2.447a3.001 3.001 0 114.829 3.478l-4.894-2.447" />
-            </svg>
-            <span>Download & Share</span>
-          </a>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-500">Alignment Engine:</span>
+            <select id="cloud-engine-select" class="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer">
+              <option value="whisperx">WhisperX (Phoneme Precision)</option>
+              <option value="wav2vec2">Wav2Vec2 (Ultra-Fast Phonetic)</option>
+              <option value="pyannote">PyAnnote (Multi-Speaker Diarization)</option>
+            </select>
+          </div>
         </div>
+
+        <!-- Manual Config -->
+        <div id="manual-config-container" class="hidden flex flex-wrap items-center gap-4">
+          <span class="text-xs font-semibold uppercase tracking-wider text-orange-400">Manual Grid Settings</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-500">Grid Increments:</span>
+            <select id="manual-slice-select" class="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 cursor-pointer">
+              <option value="0.25">0.25 Seconds (Short cuts)</option>
+              <option value="0.5">0.5 Seconds</option>
+              <option value="1.0" selected>1.0 Second</option>
+              <option value="2.0">2.0 Seconds</option>
+              <option value="4.0">4.0 Seconds</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- DAW Canvas & Edit Timeline -->
+      <div class="flex-1 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar">
+        
+        <!-- File Upload Area / Screen -->
+        <div id="drop-zone" class="glass-card border border-dashed border-[#1f2833] hover:border-cyan-500/50 rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[300px]">
+          <input type="file" id="audio-file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg,audio/*" class="hidden">
+          <div class="w-16 h-16 rounded-full bg-cyan-950/40 border border-cyan-500/20 flex items-center justify-center mb-5 transition-transform duration-300 drop-icon">
+            <svg class="w-8 h-8 text-cyan-400" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold text-white tracking-wide">Import Vocal Stem File</h2>
+          <p class="text-xs text-gray-500 mt-2.5 max-w-sm mx-auto leading-relaxed">Drag and drop or tap to load a vocal stem (.wav, .mp3, .m4a) to slice alignments.</p>
+          <div id="loaded-file-name" class="mt-5 hidden px-4 py-1.5 bg-cyan-950 text-cyan-400 text-xs font-bold rounded-full border border-cyan-500/20"></div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div id="progress-container" class="hidden glass-card p-6 border border-[#1f2833]/50 rounded-2xl space-y-3">
+          <div class="flex justify-between items-center text-xs font-semibold uppercase tracking-wider">
+            <span id="progress-status" class="text-gray-400">Booting alignment pipeline...</span>
+            <span id="progress-percentage" class="text-cyan-400">0%</span>
+          </div>
+          <div class="w-full bg-black/60 rounded-full h-2 overflow-hidden border border-[#1f2833]/30">
+            <div id="progress-bar-fill" class="bg-gradient-to-r from-cyan-500 to-blue-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="local-engine-warning" class="text-[10px] text-amber-500/80 leading-normal hidden">Note: The very first local run downloads a lightweight 75MB model into Safari's local cache. This runs fully offline subsequently.</p>
+        </div>
+
+        <!-- Dynamic Studio Slicer Editor -->
+        <div id="workspace-container" class="hidden space-y-6">
+          
+          <!-- DAW Timeline Display -->
+          <div class="glass-card p-5 border border-[#1f2833]/50 rounded-2xl space-y-4">
+            <div class="flex justify-between items-center px-1">
+              <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Visual Waveform Timeline</span>
+              <span class="text-[10px] text-gray-500">Seek by clicking anywhere on the wave</span>
+            </div>
+            
+            <div id="waveform-container" class="border border-[#1f2833]/30">
+              <canvas id="waveform-canvas"></canvas>
+              <div id="waveform-playhead"></div>
+            </div>
+          </div>
+
+          <!-- Chronological Word-Lane Slices editor -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center px-1">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400">Chronological Word Slices</h3>
+              <p class="text-[10px] text-gray-500">Tap slice capsule to mute or click text to edit lyrics</p>
+            </div>
+            
+            <div class="glass-card p-6 border border-[#1f2833]/50 rounded-2xl">
+              <div id="slices-timeline" class="flex flex-wrap gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                <!-- Word Capsules injected here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Transport controls bar -->
+          <div class="glass-card p-6 border border-[#1f2833]/50 rounded-2xl flex flex-wrap items-center justify-between gap-4 bg-[#14151a]/95">
+            <!-- Transport play buttons -->
+            <div class="flex items-center space-x-3">
+              <button id="btn-play" class="w-12 h-12 rounded-xl bg-cyan-500 text-black flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-cyan-500/20">
+                <svg class="w-6 h-6 fill-current" width="24" height="24" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </button>
+              <button id="btn-stop" class="w-12 h-12 rounded-xl bg-white/5 text-gray-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-all">
+                <svg class="w-6 h-6 fill-current" width="24" height="24" viewBox="0 0 24 24">
+                  <path d="M6 6h12v12H6z"/>
+                </svg>
+              </button>
+              
+              <div class="font-mono text-xs text-cyan-400 px-3 py-1 bg-black/60 border border-white/5 rounded-lg">
+                <span id="playback-timer">00:00.00</span> / <span id="total-timer">00:00.00</span>
+              </div>
+            </div>
+
+            <!-- Volume / Playback parameters -->
+            <div class="flex items-center space-x-3 w-48">
+              <svg class="w-4 h-4 text-gray-500" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+              <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.8" class="w-full accent-cyan-400 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Exporting & Downloading stems -->
+            <div class="flex items-center space-x-3">
+              <button id="btn-export" class="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-black font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/10 hover:scale-105 transition-transform flex items-center space-x-2">
+                <svg class="w-4 h-4" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+                </svg>
+                <span>Export WAV Stem</span>
+              </button>
+              
+              <a id="share-link" class="hidden px-5 py-3 rounded-xl bg-emerald-500 text-black font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center space-x-2">
+                <svg class="w-4 h-4" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l4.894-2.447m0 0A3.001 3.001 0 1017 8c0 .11-.006.22-.018.328l-4.895 2.447m0 0a3.001 3.001 0 11-4.829 3.478l-4.894-2.447m4.894 2.447a3.001 3.001 0 114.829 3.478l-4.894-2.447" />
+                </svg>
+                <span>Save Stem</span>
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Error messages -->
+        <div id="error-banner" class="hidden bg-red-950/40 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm text-center"></div>
+
       </div>
+
     </div>
-    
-    <!-- Error display -->
-    <div id="error-banner" class="hidden bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm text-center"></div>
-  </main>
+
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

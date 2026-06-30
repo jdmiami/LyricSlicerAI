@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-colab-url'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-colab-url, x-colab-model'
   );
 
   if (req.method === 'OPTIONS') {
@@ -21,6 +21,8 @@ export default async function handler(req, res) {
     return res.status(400).send('Missing x-colab-url header');
   }
 
+  const colabModel = req.headers['x-colab-model'] || 'whisperx';
+
   try {
     // Collect the raw request body stream
     const chunks = [];
@@ -30,13 +32,14 @@ export default async function handler(req, res) {
     const buffer = Buffer.concat(chunks);
 
     const targetUrl = `${colabUrl.replace(/\/$/, '')}/align`;
-    console.log(`Forwarding align request to: ${targetUrl}`);
+    console.log(`Forwarding align request to: ${targetUrl} (Model: ${colabModel})`);
 
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': req.headers['content-type'],
-        'Bypass-Tunnel-Reminder': 'true'
+        'Bypass-Tunnel-Reminder': 'true',
+        'x-colab-model': colabModel
       },
       body: buffer
     });

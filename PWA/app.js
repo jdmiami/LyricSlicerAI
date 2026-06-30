@@ -1,6 +1,21 @@
-// PWA Service Worker Registration
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(console.error);
+// Firebase SDK Configuration for source-coco-os
+const firebaseConfig = {
+  projectId: "source-coco-os",
+  appId: "1:193649022027:web:1ca4e5a2ceca2dbd9ee9ce",
+  storageBucket: "source-coco-os.firebasestorage.app",
+  apiKey: "AIzaSyBsapBQe5_KW-4ZxHef-bdquPJPBP8lUgk",
+  authDomain: "source-coco-os.firebaseapp.com",
+  messagingSenderId: "193649022027",
+  measurementId: "G-VRJJHBRBD3"
+};
+
+// Initialize Firebase & Firestore
+let db = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+} catch (e) {
+  console.error("Firebase failed to boot:", e);
 }
 
 // UI Elements
@@ -9,6 +24,7 @@ const btnCloudMode = document.getElementById("btn-cloud-mode");
 const btnManualMode = document.getElementById("btn-manual-mode");
 const colabConfigContainer = document.getElementById("colab-config-container");
 const colabUrlInput = document.getElementById("colab-url-input");
+const cloudEngineSelect = document.getElementById("cloud-engine-select");
 const localConfigContainer = document.getElementById("local-config-container");
 const localModelSelect = document.getElementById("local-model-select");
 const manualConfigContainer = document.getElementById("manual-config-container");
@@ -31,6 +47,8 @@ const volumeSlider = document.getElementById("volume-slider");
 const btnExport = document.getElementById("btn-export");
 const shareLink = document.getElementById("share-link");
 const errorBanner = document.getElementById("error-banner");
+const currentProjectTitle = document.getElementById("current-project-title");
+const historyList = document.getElementById("history-list");
 
 // Waveform Canvas Elements
 const waveformCanvas = document.getElementById("waveform-canvas");
@@ -50,16 +68,23 @@ let currentPlayheadInterval = null;
 let playheadStartOffset = 0;
 let playheadStartTime = 0;
 let lastHighlightedIdx = -1;
+let currentFileLoaded = null;
 
-// GSAP Initial Page Entrance Animation - Fixed readyState Race Condition
+// PWA Service Worker Registration
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(console.error);
+}
+
+// Initial Animations
 function initAnimations() {
-  // Fade in body
   gsap.to("body", { opacity: 1, duration: 0.6, ease: "power2.out" });
-  
-  // Stagger entry of main layout components
   gsap.from("header", { y: -20, opacity: 0, duration: 0.6, ease: "power3.out" });
+  gsap.from("aside", { x: -30, opacity: 0, duration: 0.7, ease: "power3.out" });
   gsap.from("#drop-zone", { y: 30, opacity: 0, duration: 0.8, delay: 0.1, ease: "power3.out" });
   gsap.from("#local-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.15, ease: "power3.out" });
+  
+  // Load History items from Firestore
+  loadFirestoreHistory();
 }
 
 if (document.readyState === "loading") {
@@ -68,16 +93,13 @@ if (document.readyState === "loading") {
   initAnimations();
 }
 
-// Set default Colab URL
 colabUrlInput.value = localStorage.getItem("colab_url") || "";
 
-// Toggle Engine Modes (GSAP Switch Animation)
+// Toggle Engine Modes
 btnLocalMode.addEventListener("click", () => {
   if (engineMode !== "local") {
     engineMode = "local";
     updateActiveModeButton(btnLocalMode, "#2563eb");
-    
-    // Animate configs
     slideInConfig(localConfigContainer);
     slideOutConfig(colabConfigContainer);
     slideOutConfig(manualConfigContainer);
@@ -88,8 +110,6 @@ btnCloudMode.addEventListener("click", () => {
   if (engineMode !== "cloud") {
     engineMode = "cloud";
     updateActiveModeButton(btnCloudMode, "#7c3aed");
-    
-    // Animate configs
     slideInConfig(colabConfigContainer);
     slideOutConfig(localConfigContainer);
     slideOutConfig(manualConfigContainer);
@@ -100,8 +120,6 @@ btnManualMode.addEventListener("click", () => {
   if (engineMode !== "manual") {
     engineMode = "manual";
     updateActiveModeButton(btnManualMode, "#ea580c");
-    
-    // Animate configs
     slideInConfig(manualConfigContainer);
     slideOutConfig(localConfigContainer);
     slideOutConfig(colabConfigContainer);
@@ -121,16 +139,16 @@ function updateActiveModeButton(activeBtn, color) {
 function slideInConfig(container) {
   container.classList.remove("hidden");
   gsap.fromTo(container, 
-    { opacity: 0, y: -10 },
-    { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
+    { opacity: 0, y: -5 },
+    { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }
   );
 }
 
 function slideOutConfig(container) {
   gsap.to(container, {
     opacity: 0,
-    y: -10,
-    duration: 0.3,
+    y: -5,
+    duration: 0.2,
     onComplete: () => container.classList.add("hidden")
   });
 }
@@ -139,16 +157,16 @@ function slideOutConfig(container) {
 dropZone.addEventListener("click", () => audioFileInput.click());
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
-  dropZone.classList.add("border-blue-500");
+  dropZone.classList.add("border-cyan-500/50");
   gsap.to(dropZone, { scale: 0.99, duration: 0.2 });
 });
 dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("border-blue-500");
+  dropZone.classList.remove("border-cyan-500/50");
   gsap.to(dropZone, { scale: 1.0, duration: 0.2 });
 });
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
-  dropZone.classList.remove("border-blue-500");
+  dropZone.classList.remove("border-cyan-500/50");
   gsap.to(dropZone, { scale: 1.0, duration: 0.2 });
   if (e.dataTransfer.files.length) {
     audioFileInput.files = e.dataTransfer.files;
@@ -158,14 +176,14 @@ dropZone.addEventListener("drop", (e) => {
 
 audioFileInput.addEventListener("change", handleFileSelection);
 
-// File Handler
 function handleFileSelection() {
   const file = audioFileInput.files[0];
   if (!file) return;
   
+  currentFileLoaded = file;
   loadedFileName.textContent = file.name;
   loadedFileName.classList.remove("hidden");
-  gsap.fromTo(loadedFileName, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
+  currentProjectTitle.textContent = file.name;
   
   errorBanner.classList.add("hidden");
   workspaceContainer.classList.add("hidden");
@@ -240,12 +258,10 @@ async function processAudio(file) {
 // Local ONNX Dynamic Loader (Prevents top-level Safari script crash)
 async function transcribeLocal() {
   localEngineWarning.classList.remove("hidden");
-  
   const selectedModel = localModelSelect.value;
   updateProgress(25, `Loading local AI engine (${selectedModel.split("/")[1]})...`);
   
   try {
-    // Dynamic import to isolate loading failures
     const transformers = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.13');
     const pipeline = transformers.pipeline;
     const env = transformers.env;
@@ -279,7 +295,7 @@ async function transcribeLocal() {
     
     if (result && result.chunks && result.chunks.length > 0) {
       words = result.chunks.map(chunk => ({
-        text: chunk.text,
+        text: chunk.text.trim(),
         startMs: chunk.timestamp[0] * 1000,
         endMs: chunk.timestamp[1] * 1000,
         isMuted: false
@@ -295,7 +311,7 @@ async function transcribeLocal() {
   }
 }
 
-// Cloud Python API alignment via PWA Vercel Serverless Proxy
+// Cloud alignment via Vercel Proxy with dynamic model headers
 async function transcribeCloud(file) {
   const colabURL = colabUrlInput.value.trim();
   if (!colabURL) {
@@ -303,7 +319,8 @@ async function transcribeCloud(file) {
   }
   localStorage.setItem("colab_url", colabURL);
   
-  updateProgress(35, "Uploading audio stem to Cloud Proxy...");
+  const selectedEngine = cloudEngineSelect.value;
+  updateProgress(35, `Uploading to Cloud (${selectedEngine.toUpperCase()})...`);
   
   const formData = new FormData();
   formData.append("file", file);
@@ -312,7 +329,8 @@ async function transcribeCloud(file) {
     const res = await fetch("/api/align", {
       method: "POST",
       headers: {
-        "x-colab-url": colabURL
+        "x-colab-url": colabURL,
+        "x-colab-model": selectedEngine
       },
       body: formData
     });
@@ -325,7 +343,7 @@ async function transcribeCloud(file) {
     updateProgress(85, "Stitching cloud alignment...");
     const data = await res.json();
     words = data.map(w => ({
-      text: w.text,
+      text: w.text.trim(),
       startMs: w.startMs,
       endMs: w.endMs,
       isMuted: w.isMuted || false
@@ -362,6 +380,83 @@ function sliceManualGrid() {
   finishProcessing();
 }
 
+// Firestore Database History logging
+async function saveProjectToFirestore() {
+  if (!db || !currentFileLoaded || words.length === 0) return;
+  
+  try {
+    const docData = {
+      fileName: currentFileLoaded.name,
+      duration: decodedAudioBuffer.duration,
+      alignedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      engineMode: engineMode,
+      modelName: engineMode === "local" ? localModelSelect.value : (engineMode === "cloud" ? cloudEngineSelect.value : "manual"),
+      slicesCount: words.length,
+      slicesData: JSON.stringify(words)
+    };
+    
+    await db.collection("lyricslicer_history").add(docData);
+    loadFirestoreHistory(); // Reload sidebar list
+  } catch (e) {
+    console.error("Firestore save error:", e);
+  }
+}
+
+async function loadFirestoreHistory() {
+  if (!db) return;
+  
+  try {
+    const snapshot = await db.collection("lyricslicer_history")
+      .orderBy("alignedAt", "desc")
+      .limit(15)
+      .get();
+      
+    historyList.innerHTML = "";
+    
+    if (snapshot.empty) {
+      historyList.innerHTML = `<div class="text-center py-8 text-xs text-gray-500">No project history found.</div>`;
+      return;
+    }
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const card = document.createElement("div");
+      card.className = "history-item flex flex-col space-y-1";
+      
+      const formattedDate = data.alignedAt ? new Date(data.alignedAt.seconds * 1000).toLocaleDateString() : "Just now";
+      
+      card.innerHTML = `
+        <div class="text-xs font-bold text-white truncate">${data.fileName}</div>
+        <div class="flex justify-between items-center text-[10px] text-gray-500 font-mono">
+          <span>${formatTime(data.duration)}</span>
+          <span class="text-cyan-400 uppercase font-semibold text-[8px]">${data.engineMode}</span>
+          <span>${formattedDate}</span>
+        </div>
+      `;
+      
+      card.addEventListener("click", () => {
+        // Load the saved word segments immediately
+        words = JSON.parse(data.slicesData);
+        currentProjectTitle.textContent = data.fileName;
+        loadedFileName.textContent = data.fileName;
+        loadedFileName.classList.remove("hidden");
+        
+        if (decodedAudioBuffer) {
+          drawWaveform();
+          renderWordSlices();
+          workspaceContainer.classList.remove("hidden");
+        } else {
+          alert("Import the audio file first to populate this alignment map.");
+        }
+      });
+      
+      historyList.appendChild(card);
+    });
+  } catch (e) {
+    console.error("Firestore history fetch failed:", e);
+  }
+}
+
 // Helpers
 function updateProgress(percentage, status) {
   progressStatus.textContent = status;
@@ -378,6 +473,9 @@ function showError(msg) {
 
 function finishProcessing() {
   updateProgress(100, "Ready!");
+  
+  // Save metadata to Firestore
+  saveProjectToFirestore();
   
   gsap.to(progressContainer, {
     opacity: 0,
@@ -451,7 +549,7 @@ function drawWaveform() {
   ctx.lineTo(width, amp);
   ctx.stroke();
   
-  ctx.strokeStyle = "rgba(59, 130, 246, 0.55)";
+  ctx.strokeStyle = "rgba(34, 211, 238, 0.6)"; // Cyan DAW theme waveform color
   ctx.lineWidth = 2;
   ctx.beginPath();
   
@@ -521,17 +619,42 @@ function renderWordSlices() {
   
   words.forEach((word, idx) => {
     const chip = document.createElement("div");
-    chip.className = `word-chip px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold transition-all duration-300 ${word.isMuted ? "muted" : ""}`;
-    chip.textContent = word.text;
+    chip.className = `word-chip ${word.isMuted ? "muted" : ""}`;
     chip.dataset.idx = idx;
     
-    chip.addEventListener("click", () => {
+    // Inline Editable Input field
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.value = word.text;
+    textInput.addEventListener("change", (e) => {
+      word.text = e.target.value.trim();
+      // Push updated segments back to Firestore
+      saveProjectToFirestore();
+    });
+    // Prevent typing from toggling play/stop Spacebar trigger
+    textInput.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+    });
+    
+    // Toggle Mute button inside chip
+    const muteIndicator = document.createElement("span");
+    muteIndicator.className = `w-2 h-2 rounded-full ${word.isMuted ? "bg-red-500" : "bg-cyan-400"}`;
+    
+    chip.appendChild(muteIndicator);
+    chip.appendChild(textInput);
+    
+    // Clicking the capsule outside of the input box toggles mute state
+    chip.addEventListener("click", (e) => {
+      if (e.target === textInput) return; // Ignore input focus clicks
+      
       word.isMuted = !word.isMuted;
       if (word.isMuted) {
         chip.classList.add("muted");
+        muteIndicator.className = "w-2 h-2 rounded-full bg-red-500";
         gsap.fromTo(chip, { scale: 1 }, { scale: 0.95, duration: 0.2, yoyo: true, repeat: 1 });
       } else {
         chip.classList.remove("muted");
+        muteIndicator.className = "w-2 h-2 rounded-full bg-cyan-400";
         gsap.fromTo(chip, { scale: 1 }, { scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 });
       }
       
@@ -541,6 +664,9 @@ function renderWordSlices() {
       if (isPlaying) {
         scheduleVolumeAutomation();
       }
+      
+      // Update database status
+      saveProjectToFirestore();
     });
     
     slicesTimeline.appendChild(chip);
@@ -578,8 +704,8 @@ function startAudioPlayback(offset = 0) {
   activeSourceNode.start(0, offset);
   isPlaying = true;
   btnPlay.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <svg class="w-6 h-6 fill-current" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
     </svg>`;
   
   playheadStartTime = audioContext.currentTime;
@@ -598,18 +724,18 @@ function stopAudioPlayback() {
   }
   isPlaying = false;
   btnPlay.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <svg class="w-6 h-6 fill-current" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z"/>
     </svg>`;
   
   clearInterval(currentPlayheadInterval);
-  playbackTimer.textContent = "00:00";
+  playbackTimer.textContent = "00:00.00";
   waveformPlayhead.style.transform = `translateX(0px)`;
   
   words.forEach((_, idx) => {
     const chip = slicesTimeline.children[idx];
     if (chip) {
-      gsap.to(chip, { scale: 1.0, borderColor: "rgba(255, 255, 255, 0.1)", boxShadow: "none", duration: 0.2 });
+      gsap.to(chip, { scale: 1.0, borderColor: "rgba(255, 255, 255, 0.05)", boxShadow: "none", duration: 0.2 });
     }
   });
   lastHighlightedIdx = -1;
@@ -676,7 +802,7 @@ function updatePlayheadProgress() {
       if (lastChip) {
         gsap.to(lastChip, {
           scale: 1.0,
-          borderColor: "rgba(255,255,255,0.1)",
+          borderColor: "rgba(255,255,255,0.05)",
           boxShadow: "none",
           duration: 0.25,
           overwrite: "auto"
@@ -689,8 +815,8 @@ function updatePlayheadProgress() {
       if (activeChip) {
         gsap.to(activeChip, {
           scale: 1.08,
-          borderColor: "#3b82f6",
-          boxShadow: "0 0 15px rgba(59, 130, 246, 0.45)",
+          borderColor: "#22d3ee",
+          boxShadow: "0 0 15px rgba(34, 211, 238, 0.45)",
           duration: 0.2,
           overwrite: "auto"
         });
@@ -725,7 +851,8 @@ volumeSlider.addEventListener("input", () => {
 function formatTime(secs) {
   const m = Math.floor(secs / 60).toString().padStart(2, "0");
   const s = Math.floor(secs % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
+  const ms = Math.floor((secs % 1) * 100).toString().padStart(2, "0");
+  return `${m}:${s}.${ms}`;
 }
 
 // Export to WAV & compile silenced segments client-side
@@ -765,7 +892,7 @@ btnExport.addEventListener("click", async () => {
       const url = URL.createObjectURL(blob);
       
       shareLink.href = url;
-      shareLink.download = "LyricSlicer_MutedStem.wav";
+      shareLink.download = `${loadedFileName.textContent.replace(/\.[^/.]+$/, "")}_muted.wav`;
       shareLink.classList.remove("hidden");
       
       gsap.fromTo(shareLink, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
@@ -775,10 +902,10 @@ btnExport.addEventListener("click", async () => {
       
       setTimeout(() => {
         btnExport.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="w-4 h-4" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
           </svg>
-          <span>Export Stem</span>`;
+          <span>Export WAV Stem</span>`;
       }, 2000);
       
     } catch (err) {
@@ -828,5 +955,4 @@ function writeString(view, offset, string) {
   }
 }
 
-// Redraw canvas on window resize
 window.addEventListener("resize", drawWaveform);
