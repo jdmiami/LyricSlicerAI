@@ -43,6 +43,7 @@ targets:
     platform: iOS
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.lyricslicer.LyricSlicerApp.LyricSlicerAU
+      SWIFT_OBJC_BRIDGING_HEADER: LyricSlicerAU/LyricSlicerAU-Bridging-Header.h
     sources: 
       - path: LyricSlicerAU
       - path: Core
