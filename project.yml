@@ -13,6 +13,8 @@ targets:
   LyricSlicerApp:
     type: application
     platform: iOS
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.lyricslicer.LyricSlicerApp
     sources: 
       - path: LyricSlicerApp
       - path: Core
@@ -38,6 +40,8 @@ targets:
   LyricSlicerAU:
     type: app-extension
     platform: iOS
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.lyricslicer.LyricSlicerApp.LyricSlicerAU
     sources: 
       - path: LyricSlicerAU
       - path: Core
