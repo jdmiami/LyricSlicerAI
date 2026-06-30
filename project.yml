@@ -1,0 +1,51 @@
+name: LyricSlicerAI
+options:
+  bundleIdPrefix: com.lyricslicer
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  LyricSlicerApp:
+    type: application
+    platform: iOS
+    sources: 
+      - path: LyricSlicerApp
+      - path: Core
+    info:
+      path: LyricSlicerApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [arm64]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - target: LyricSlicerAU
+
+  LyricSlicerAU:
+    type: app-extension
+    platform: iOS
+    sources: 
+      - path: LyricSlicerAU
+      - path: Core
+    info:
+      path: LyricSlicerAU/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionAttributes:
+            AudioComponentBundle: com.lyricslicer.LyricSlicerApp.LyricSlicerAU
+            AudioComponents:
+              - description: LyricSlicer AI
+                manufacturer: LrcS
+                name: LyricSlicer: AI Slicer
+                subtype: slce
+                type: aumu
+                version: 1.0.0
+          NSExtensionPointIdentifier: com.apple.AudioUnit-UI
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SlicerAudioUnit"
