@@ -90,14 +90,15 @@ public struct SlicerView: View {
                 if isProcessing {
                     VStack(spacing: 16) {
                         ProgressView()
-                            .progressViewStyle(LinearProgressViewStyle(tint: isPro ? .purple : .blue))
+                            .progressViewStyle(CircularProgressViewStyle(tint: isPro ? .purple : .blue))
+                            .scaleEffect(1.5)
                             .frame(width: 250)
                             .padding()
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                             .shadow(color: isPro ? .purple.opacity(0.5) : .blue.opacity(0.5), radius: 10)
                             
-                        Text(isPro ? "Aligning Neural Net on Cloud GPU..." : "Processing locally on Neural Engine...")
+                        Text(isPro ? "Aligning Neural Net on Cloud GPU..." : "Processing locally on Neural Engine... (May download models on first run)")
                             .font(.subheadline)
                             .foregroundColor(.gray)
                     }
@@ -139,23 +140,38 @@ public struct SlicerView: View {
         isProcessing = true
         errorMessage = nil
         words = []
-        loadedAudioURL = url
         exportedAudioURL = nil
         
         // Try accessing security-scoped resource in case it's outside the app sandbox
         let gotAccess = url.startAccessingSecurityScopedResource()
         
-        Task {
-            defer {
-                if gotAccess {
-                    url.stopAccessingSecurityScopedResource()
-                }
+        // Copy to temporary directory to bypass sandbox limits during inference and export
+        let tempDir = FileManager.default.temporaryDirectory
+        let localURL = tempDir.appendingPathComponent(url.lastPathComponent)
+        
+        do {
+            if FileManager.default.fileExists(atPath: localURL.path) {
+                try FileManager.default.removeItem(at: localURL)
             }
-            
+            try FileManager.default.copyItem(at: url, to: localURL)
+        } catch {
+            self.errorMessage = "Failed to import audio: \(error.localizedDescription)"
+            self.isProcessing = false
+            if gotAccess { url.stopAccessingSecurityScopedResource() }
+            return
+        }
+        
+        if gotAccess {
+            url.stopAccessingSecurityScopedResource()
+        }
+        
+        self.loadedAudioURL = localURL
+        
+        Task {
             do {
-                // Load the audio buffer into the audio unit
+                // Load the audio buffer into the audio unit using the local sandbox copy
                 if let unit = audioUnit {
-                    let audioFile = try AVAudioFile(forReading: url)
+                    let audioFile = try AVAudioFile(forReading: localURL)
                     if let format = AVAudioFormat(standardFormatWithSampleRate: 44100.0, channels: 2),
                        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(audioFile.length)) {
                         try audioFile.read(into: buffer)
@@ -167,10 +183,10 @@ public struct SlicerView: View {
                 if isPro {
                     engine = CloudEngine(apiURL: colabURL)
                 } else {
-                    engine = LocalEngine() // Future WhisperKit implementation
+                    engine = LocalEngine() // Uses WhisperKit
                 }
                 
-                let result = try await engine.transcribeAudio(at: url)
+                let result = try await engine.transcribeAudio(at: localURL)
                 
                 await MainActor.run {
                     self.words = result
@@ -189,15 +205,7 @@ public struct SlicerView: View {
         guard let sourceURL = loadedAudioURL, !words.isEmpty else { return }
         isExporting = true
         
-        // Try accessing security-scoped resource if it's from the file picker
-        let gotAccess = sourceURL.startAccessingSecurityScopedResource()
-        
         Task {
-            defer {
-                if gotAccess {
-                    sourceURL.stopAccessingSecurityScopedResource()
-                }
-            }
             do {
                 let sourceFile = try AVAudioFile(forReading: sourceURL)
                 let format = sourceFile.processingFormat
