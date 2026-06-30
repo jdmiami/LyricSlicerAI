@@ -11,6 +11,9 @@ public struct SlicerView: View {
     @State private var isProcessing: Bool = false
     @State private var errorMessage: String? = nil
     @State private var showingFilePicker = false
+    @State private var loadedAudioURL: URL? = nil
+    @State private var exportedAudioURL: URL? = nil
+    @State private var isExporting: Bool = false
     
     // Mock audio duration for UI layout
     let totalDurationMs: Double = 5000 
@@ -33,6 +36,37 @@ public struct SlicerView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     Spacer()
+                    
+                    if isExporting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .padding(.trailing, 8)
+                    } else if let exportURL = exportedAudioURL {
+                        ShareLink(item: exportURL) {
+                            HStack {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Share Audio")
+                            }
+                            .foregroundColor(.white)
+                            .padding(8)
+                            .background(Color.green.opacity(0.8))
+                            .cornerRadius(8)
+                        }
+                        .padding(.trailing, 8)
+                    } else if !words.isEmpty {
+                        Button(action: { generateExportedAudio() }) {
+                            HStack {
+                                Image(systemName: "waveform.badge.minus")
+                                Text("Export")
+                            }
+                            .foregroundColor(.white)
+                            .padding(8)
+                            .background(Color.orange.opacity(0.8))
+                            .cornerRadius(8)
+                        }
+                        .padding(.trailing, 8)
+                    }
+
                     Button(action: { showingFilePicker = true }) {
                         HStack {
                             Image(systemName: "folder.fill")
@@ -54,13 +88,18 @@ public struct SlicerView: View {
                 Spacer()
                 
                 if isProcessing {
-                    VStack {
+                    VStack(spacing: 16) {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
+                            .progressViewStyle(LinearProgressViewStyle(tint: isPro ? .purple : .blue))
+                            .frame(width: 250)
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                            .shadow(color: isPro ? .purple.opacity(0.5) : .blue.opacity(0.5), radius: 10)
+                            
                         Text(isPro ? "Aligning Neural Net on Cloud GPU..." : "Processing locally on Neural Engine...")
+                            .font(.subheadline)
                             .foregroundColor(.gray)
-                            .padding(.top)
                     }
                 } else if let errorMessage = errorMessage {
                     Text(errorMessage)
@@ -100,6 +139,8 @@ public struct SlicerView: View {
         isProcessing = true
         errorMessage = nil
         words = []
+        loadedAudioURL = url
+        exportedAudioURL = nil
         
         // Try accessing security-scoped resource in case it's outside the app sandbox
         let gotAccess = url.startAccessingSecurityScopedResource()
@@ -139,6 +180,85 @@ public struct SlicerView: View {
                 await MainActor.run {
                     self.errorMessage = "Error: \(error.localizedDescription)"
                     self.isProcessing = false
+                }
+            }
+        }
+    }
+    
+    private func generateExportedAudio() {
+        guard let sourceURL = loadedAudioURL, !words.isEmpty else { return }
+        isExporting = true
+        
+        // Try accessing security-scoped resource if it's from the file picker
+        let gotAccess = sourceURL.startAccessingSecurityScopedResource()
+        
+        Task {
+            defer {
+                if gotAccess {
+                    sourceURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                let sourceFile = try AVAudioFile(forReading: sourceURL)
+                let format = sourceFile.processingFormat
+                
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let exportURL = documentsPath.appendingPathComponent("LyricSlicer_Export.wav")
+                
+                // Remove existing file if any
+                try? FileManager.default.removeItem(at: exportURL)
+                
+                // Create a destination file using the source file's format settings
+                let destFile = try AVAudioFile(forWriting: exportURL, settings: sourceFile.fileFormat.settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+                
+                let frameCapacity: AVAudioFrameCount = 44100 // Process in 1 second chunks
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
+                    throw NSError(domain: "Export", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not create audio buffer"])
+                }
+                
+                var currentFramePosition: AVAudioFramePosition = 0
+                let totalFrames = sourceFile.length
+                let sampleRate = format.sampleRate
+                
+                while currentFramePosition < totalFrames {
+                    let framesToRead = min(AVAudioFrameCount(totalFrames - currentFramePosition), frameCapacity)
+                    try sourceFile.read(into: buffer, frameCount: framesToRead)
+                    
+                    // Apply muting based on words
+                    if let channelData = buffer.floatChannelData {
+                        for frame in 0..<Int(buffer.frameLength) {
+                            let currentSamplePos = currentFramePosition + AVAudioFramePosition(frame)
+                            let currentMs = (Double(currentSamplePos) / sampleRate) * 1000.0
+                            
+                            // Check if currentMs falls within any muted word
+                            var isMuted = false
+                            for word in words {
+                                if currentMs >= word.startTime * 1000.0 && currentMs <= word.endTime * 1000.0 {
+                                    isMuted = word.isMuted
+                                    break
+                                }
+                            }
+                            
+                            if isMuted {
+                                for channel in 0..<Int(format.channelCount) {
+                                    channelData[channel][frame] = 0.0
+                                }
+                            }
+                        }
+                    }
+                    
+                    try destFile.write(from: buffer)
+                    currentFramePosition += AVAudioFramePosition(buffer.frameLength)
+                }
+                
+                await MainActor.run {
+                    self.exportedAudioURL = exportURL
+                    self.isExporting = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Export failed: \(error.localizedDescription)"
+                    self.isExporting = false
                 }
             }
         }
