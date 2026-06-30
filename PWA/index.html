@@ -56,9 +56,10 @@
     
     <!-- Engine Toggles -->
     <div class="flex items-center space-x-4">
-      <div class="flex bg-white/5 rounded-lg p-1 border border-white/5">
+      <div class="flex bg-white/5 rounded-lg p-1 border border-white/5 space-x-1">
         <button id="btn-local-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 bg-blue-600 text-white shadow-md">Local AI</button>
         <button id="btn-cloud-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 text-gray-400 hover:text-white">Cloud GPU</button>
+        <button id="btn-manual-mode" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 text-gray-400 hover:text-white">Manual Grid</button>
       </div>
     </div>
   </header>
@@ -82,6 +83,20 @@
       <h3 class="text-sm font-semibold uppercase tracking-wider text-purple-400">Cloud Configuration</h3>
       <div class="flex space-x-3">
         <input type="text" id="colab-url-input" placeholder="Enter Colab Localtunnel URL (e.g. https://xxxx.loca.lt)" class="flex-1 bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white">
+      </div>
+    </div>
+
+    <!-- Manual Grid Settings (Shown only for Manual Mode) -->
+    <div id="manual-config-container" class="hidden glass-card p-6 border border-white/5 rounded-2xl space-y-4">
+      <h3 class="text-sm font-semibold uppercase tracking-wider text-orange-400">Manual Grid Settings</h3>
+      <div class="flex items-center space-x-4">
+        <span class="text-xs text-gray-400">Slice Duration:</span>
+        <select id="manual-slice-select" class="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors cursor-pointer">
+          <option value="0.5">0.5 Seconds</option>
+          <option value="1.0" selected>1.0 Second</option>
+          <option value="2.0">2.0 Seconds</option>
+          <option value="4.0">4.0 Seconds</option>
+        </select>
       </div>
     </div>
 

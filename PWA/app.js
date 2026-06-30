@@ -3,18 +3,16 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(console.error);
 }
 
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.13';
-
-// Configure environment to fetch models from HF Hub directly
-env.allowLocalModels = false;
-
 // UI Elements
 const btnLocalMode = document.getElementById("btn-local-mode");
 const btnCloudMode = document.getElementById("btn-cloud-mode");
+const btnManualMode = document.getElementById("btn-manual-mode");
 const colabConfigContainer = document.getElementById("colab-config-container");
 const colabUrlInput = document.getElementById("colab-url-input");
 const localConfigContainer = document.getElementById("local-config-container");
 const localModelSelect = document.getElementById("local-model-select");
+const manualConfigContainer = document.getElementById("manual-config-container");
+const manualSliceSelect = document.getElementById("manual-slice-select");
 const dropZone = document.getElementById("drop-zone");
 const audioFileInput = document.getElementById("audio-file-input");
 const loadedFileName = document.getElementById("loaded-file-name");
@@ -44,7 +42,7 @@ let decodedAudioBuffer = null;
 let activeSourceNode = null;
 let activeGainNode = null;
 let isPlaying = false;
-let isProMode = false;
+let engineMode = "local"; // "local" | "cloud" | "manual"
 let words = []; // Array of { text, startMs, endMs, isMuted }
 let localTranscriber = null;
 let loadedModelName = null;
@@ -62,7 +60,6 @@ function initAnimations() {
   gsap.from("header", { y: -20, opacity: 0, duration: 0.6, ease: "power3.out" });
   gsap.from("#drop-zone", { y: 30, opacity: 0, duration: 0.8, delay: 0.1, ease: "power3.out" });
   gsap.from("#local-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.15, ease: "power3.out" });
-  gsap.from("#colab-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.2, ease: "power3.out" });
 }
 
 if (document.readyState === "loading") {
@@ -76,50 +73,67 @@ colabUrlInput.value = localStorage.getItem("colab_url") || "";
 
 // Toggle Engine Modes (GSAP Switch Animation)
 btnLocalMode.addEventListener("click", () => {
-  if (isProMode) {
-    isProMode = false;
-    gsap.to(btnLocalMode, { backgroundColor: "#2563eb", color: "#ffffff", duration: 0.3, ease: "power1.out" });
-    gsap.to(btnCloudMode, { backgroundColor: "transparent", color: "#9ca3af", duration: 0.3, ease: "power1.out" });
+  if (engineMode !== "local") {
+    engineMode = "local";
+    updateActiveModeButton(btnLocalMode, "#2563eb");
     
-    // Slide local configuration back in
-    localConfigContainer.classList.remove("hidden");
-    gsap.fromTo(localConfigContainer, 
-      { opacity: 0, y: -10 },
-      { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
-    );
-
-    // Slide colab container out
-    gsap.to(colabConfigContainer, {
-      opacity: 0,
-      y: -10,
-      duration: 0.3,
-      onComplete: () => colabConfigContainer.classList.add("hidden")
-    });
+    // Animate configs
+    slideInConfig(localConfigContainer);
+    slideOutConfig(colabConfigContainer);
+    slideOutConfig(manualConfigContainer);
   }
 });
 
 btnCloudMode.addEventListener("click", () => {
-  if (!isProMode) {
-    isProMode = true;
-    gsap.to(btnCloudMode, { backgroundColor: "#7c3aed", color: "#ffffff", duration: 0.3, ease: "power1.out" });
-    gsap.to(btnLocalMode, { backgroundColor: "transparent", color: "#9ca3af", duration: 0.3, ease: "power1.out" });
+  if (engineMode !== "cloud") {
+    engineMode = "cloud";
+    updateActiveModeButton(btnCloudMode, "#7c3aed");
     
-    // Slide colab container in
-    colabConfigContainer.classList.remove("hidden");
-    gsap.fromTo(colabConfigContainer, 
-      { opacity: 0, y: -10 },
-      { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
-    );
-
-    // Slide local selector out
-    gsap.to(localConfigContainer, {
-      opacity: 0,
-      y: -10,
-      duration: 0.3,
-      onComplete: () => localConfigContainer.classList.add("hidden")
-    });
+    // Animate configs
+    slideInConfig(colabConfigContainer);
+    slideOutConfig(localConfigContainer);
+    slideOutConfig(manualConfigContainer);
   }
 });
+
+btnManualMode.addEventListener("click", () => {
+  if (engineMode !== "manual") {
+    engineMode = "manual";
+    updateActiveModeButton(btnManualMode, "#ea580c");
+    
+    // Animate configs
+    slideInConfig(manualConfigContainer);
+    slideOutConfig(localConfigContainer);
+    slideOutConfig(colabConfigContainer);
+  }
+});
+
+function updateActiveModeButton(activeBtn, color) {
+  [btnLocalMode, btnCloudMode, btnManualMode].forEach(btn => {
+    if (btn === activeBtn) {
+      gsap.to(btn, { backgroundColor: color, color: "#ffffff", duration: 0.3, ease: "power1.out" });
+    } else {
+      gsap.to(btn, { backgroundColor: "transparent", color: "#9ca3af", duration: 0.3, ease: "power1.out" });
+    }
+  });
+}
+
+function slideInConfig(container) {
+  container.classList.remove("hidden");
+  gsap.fromTo(container, 
+    { opacity: 0, y: -10 },
+    { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
+  );
+}
+
+function slideOutConfig(container) {
+  gsap.to(container, {
+    opacity: 0,
+    y: -10,
+    duration: 0.3,
+    onComplete: () => container.classList.add("hidden")
+  });
+}
 
 // Drop Zone Handlers
 dropZone.addEventListener("click", () => audioFileInput.click());
@@ -149,7 +163,6 @@ function handleFileSelection() {
   const file = audioFileInput.files[0];
   if (!file) return;
   
-  // Show loaded file label
   loadedFileName.textContent = file.name;
   loadedFileName.classList.remove("hidden");
   gsap.fromTo(loadedFileName, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
@@ -159,7 +172,6 @@ function handleFileSelection() {
   shareLink.classList.add("hidden");
   words = [];
   
-  // Start loading
   processAudio(file);
 }
 
@@ -207,25 +219,25 @@ async function processAudio(file) {
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
     
-    // Decode Audio Data
     const arrayBuffer = await file.arrayBuffer();
     updateProgress(15, "Decoding audio stem...");
     decodedAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     
-    // Format timer
     totalTimer.textContent = formatTime(decodedAudioBuffer.duration);
     
-    if (isProMode) {
+    if (engineMode === "local") {
+      await transcribeLocal();
+    } else if (engineMode === "cloud") {
       await transcribeCloud(file);
     } else {
-      await transcribeLocal();
+      sliceManualGrid();
     }
   } catch (err) {
     showError("Failed to decode or process audio: " + err.message);
   }
 }
 
-// Local ONNX Multi-AI Engine
+// Local ONNX Dynamic Loader (Prevents top-level Safari script crash)
 async function transcribeLocal() {
   localEngineWarning.classList.remove("hidden");
   
@@ -233,7 +245,12 @@ async function transcribeLocal() {
   updateProgress(25, `Loading local AI engine (${selectedModel.split("/")[1]})...`);
   
   try {
-    // If model selection has changed, reload the pipeline
+    // Dynamic import to isolate loading failures
+    const transformers = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.13');
+    const pipeline = transformers.pipeline;
+    const env = transformers.env;
+    env.allowLocalModels = false;
+    
     if (!localTranscriber || loadedModelName !== selectedModel) {
       localTranscriber = await pipeline('automatic-speech-recognition', selectedModel, {
         progress_callback: (data) => {
@@ -273,8 +290,8 @@ async function transcribeLocal() {
     
     finishProcessing();
   } catch (err) {
-    showError("Local model failed: " + err.message + ". Using fallback slices...");
-    finishProcessing(generateFallbackSlices());
+    showError("Local model failed: " + err.message + ". Falling back to manual grid slicing...");
+    sliceManualGrid();
   }
 }
 
@@ -320,6 +337,31 @@ async function transcribeCloud(file) {
   }
 }
 
+// Manual Grid Slicer Logic
+function sliceManualGrid() {
+  updateProgress(80, "Calculating grid boundaries...");
+  const durationSec = decodedAudioBuffer.duration;
+  const sliceDuration = parseFloat(manualSliceSelect.value);
+  
+  words = [];
+  let currentTimeSec = 0;
+  let chunkIdx = 1;
+  
+  while (currentTimeSec < durationSec) {
+    const end = Math.min(durationSec, currentTimeSec + sliceDuration);
+    words.push({
+      text: `[Slice ${chunkIdx}]`,
+      startMs: currentTimeSec * 1000,
+      endMs: end * 1000,
+      isMuted: false
+    });
+    currentTimeSec = end;
+    chunkIdx++;
+  }
+  
+  finishProcessing();
+}
+
 // Helpers
 function updateProgress(percentage, status) {
   progressStatus.textContent = status;
@@ -334,10 +376,7 @@ function showError(msg) {
   progressContainer.classList.add("hidden");
 }
 
-function finishProcessing(fallbackWords = null) {
-  if (fallbackWords) {
-    words = fallbackWords;
-  }
+function finishProcessing() {
   updateProgress(100, "Ready!");
   
   gsap.to(progressContainer, {
@@ -354,7 +393,6 @@ function finishProcessing(fallbackWords = null) {
         { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
       );
       
-      // Draw Waveform and Render Words
       drawWaveform();
       renderWordSlices();
     }
@@ -381,7 +419,6 @@ function generateFallbackSlices() {
 function drawWaveform() {
   if (!decodedAudioBuffer) return;
   
-  // Set canvas dimensions
   const rect = waveformCanvas.parentElement.getBoundingClientRect();
   waveformCanvas.width = rect.width * (window.devicePixelRatio || 1);
   waveformCanvas.height = rect.height * (window.devicePixelRatio || 1);
@@ -393,13 +430,13 @@ function drawWaveform() {
   
   const width = rect.width;
   const height = rect.height;
-  const rawData = decodedAudioBuffer.getChannelData(0); // Left channel
+  const rawData = decodedAudioBuffer.getChannelData(0);
   const step = Math.ceil(rawData.length / width);
   const amp = height / 2;
   
   ctx.clearRect(0, 0, width, height);
   
-  // Draw Background Grid Lines
+  // Background lines
   ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
   ctx.lineWidth = 1;
   for (let i = 50; i < width; i += 50) {
@@ -409,14 +446,12 @@ function drawWaveform() {
     ctx.stroke();
   }
   
-  // Draw Center Line
   ctx.beginPath();
   ctx.moveTo(0, amp);
   ctx.lineTo(width, amp);
   ctx.stroke();
   
-  // Draw Downsampled Waveform Peaks
-  ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"; // Blue semitransparent
+  ctx.strokeStyle = "rgba(59, 130, 246, 0.55)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   
@@ -433,14 +468,13 @@ function drawWaveform() {
   }
   ctx.stroke();
   
-  // Draw word boundaries and muted segments
   words.forEach(word => {
     const duration = decodedAudioBuffer.duration * 1000;
     const startX = (word.startMs / duration) * width;
     const endX = (word.endMs / duration) * width;
     
     if (word.isMuted) {
-      ctx.fillStyle = "rgba(239, 68, 68, 0.2)"; // Red transparent fill for muted slices
+      ctx.fillStyle = "rgba(239, 68, 68, 0.2)";
       ctx.fillRect(startX, 0, endX - startX, height);
       
       ctx.strokeStyle = "rgba(239, 68, 68, 0.4)";
@@ -462,7 +496,7 @@ function drawWaveform() {
   });
 }
 
-// Waveform click-to-seek logic
+// Seek on click
 waveformCanvas.addEventListener("click", (e) => {
   if (!decodedAudioBuffer) return;
   const rect = waveformCanvas.getBoundingClientRect();
@@ -475,7 +509,6 @@ waveformCanvas.addEventListener("click", (e) => {
   if (isPlaying) {
     startAudioPlayback(targetSeekTime);
   } else {
-    // Update playhead visually
     waveformPlayhead.style.transform = `translateX(${clickX}px)`;
     playbackTimer.textContent = formatTime(targetSeekTime);
   }
@@ -502,7 +535,6 @@ function renderWordSlices() {
         gsap.fromTo(chip, { scale: 1 }, { scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 });
       }
       
-      // Update canvas to draw the red silence overlay immediately
       drawWaveform();
       shareLink.classList.add("hidden");
       
@@ -514,7 +546,6 @@ function renderWordSlices() {
     slicesTimeline.appendChild(chip);
   });
   
-  // Stagger entry of word chips
   gsap.from(".word-chip", {
     scale: 0.7,
     opacity: 0,
@@ -554,7 +585,7 @@ function startAudioPlayback(offset = 0) {
   playheadStartTime = audioContext.currentTime;
   playheadStartOffset = offset;
   
-  currentPlayheadInterval = setInterval(updatePlayheadProgress, 30); // 30fps update for playhead
+  currentPlayheadInterval = setInterval(updatePlayheadProgress, 30);
 }
 
 function stopAudioPlayback() {
@@ -624,7 +655,6 @@ function updatePlayheadProgress() {
     return;
   }
   
-  // Position playhead line on waveform
   const duration = decodedAudioBuffer.duration;
   const rect = waveformCanvas.getBoundingClientRect();
   const playheadX = (elapsed / duration) * rect.width;
@@ -641,7 +671,6 @@ function updatePlayheadProgress() {
   }
   
   if (activeIdx !== lastHighlightedIdx) {
-    // Dim previous active chip
     if (lastHighlightedIdx !== -1) {
       const lastChip = slicesTimeline.children[lastHighlightedIdx];
       if (lastChip) {
@@ -655,7 +684,6 @@ function updatePlayheadProgress() {
       }
     }
     
-    // Highlight new active chip
     if (activeIdx !== -1) {
       const activeChip = slicesTimeline.children[activeIdx];
       if (activeChip) {
