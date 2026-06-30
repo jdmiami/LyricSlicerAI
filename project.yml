@@ -71,3 +71,4 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
       - sdk: CoreMedia.framework
+      - package: WhisperKit
