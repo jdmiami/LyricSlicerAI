@@ -9,23 +9,29 @@ public class LocalEngine: TranscriptionEngine {
     
     public init() {}
     
-    private func getPipe() async throws -> WhisperKit {
+    private func getPipe(onProgress: @escaping @Sendable (Double, String) -> Void) async throws -> WhisperKit {
         if let pipe = Self.cachedPipe {
             return pipe
         }
-        print("Initializing WhisperKit with openai/whisper-tiny...")
-        let pipe = try await WhisperKit(model: "openai/whisper-tiny")
+        onProgress(0.1, "Initializing CoreML framework...")
+        print("Initializing WhisperKit with openai_whisper-tiny...")
+        onProgress(0.2, "Loading model: openai_whisper-tiny...")
+        let pipe = try await WhisperKit(model: "openai_whisper-tiny")
         Self.cachedPipe = pipe
         return pipe
     }
     
-    public func transcribeAudio(at audioFileURL: URL) async throws -> [WordSlice] {
+    public func transcribeAudio(at audioFileURL: URL, onProgress: @escaping @Sendable (Double, String) -> Void) async throws -> [WordSlice] {
         print("Starting Local Offline Transcription via WhisperKit on Neural Engine...")
+        onProgress(0.05, "Preparing local audio stem...")
         
-        let pipe = try await getPipe()
+        let pipe = try await getPipe(onProgress: onProgress)
+        
+        onProgress(0.4, "Analyzing voice segments...")
         
         let anyResult = try await pipe.transcribe(audioPath: audioFileURL.path, decodeOptions: DecodingOptions(wordTimestamps: true)) as Any
         
+        onProgress(0.8, "Aligning word timestamps...")
         var wordSlices: [WordSlice] = []
         
         // Accumulate segments from all transcription results (each result is a chunk)
@@ -58,6 +64,7 @@ public class LocalEngine: TranscriptionEngine {
         
         // Fallback if no words were detected
         if wordSlices.isEmpty {
+            onProgress(1.0, "Transcription completed (Fallback)")
             return [
                 WordSlice(text: "No", startMs: 0, endMs: 300),
                 WordSlice(text: "words", startMs: 310, endMs: 500),
@@ -65,6 +72,7 @@ public class LocalEngine: TranscriptionEngine {
             ]
         }
         
+        onProgress(1.0, "Transcription completed successfully")
         return wordSlices
     }
 }

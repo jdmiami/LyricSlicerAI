@@ -15,6 +15,10 @@ public struct SlicerView: View {
     @State private var exportedAudioURL: URL? = nil
     @State private var isExporting: Bool = false
     
+    // Real-time progress tracking
+    @State private var progressPercentage: Double = 0.0
+    @State private var progressStatus: String = ""
+    
     // Mock audio duration for UI layout
     let totalDurationMs: Double = 5000 
     
@@ -89,18 +93,22 @@ public struct SlicerView: View {
                 
                 if isProcessing {
                     VStack(spacing: 16) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: isPro ? .purple : .blue))
-                            .scaleEffect(1.5)
+                        ProgressView(value: progressPercentage, total: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle(tint: isPro ? .purple : .blue))
                             .frame(width: 250)
                             .padding()
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                             .shadow(color: isPro ? .purple.opacity(0.5) : .blue.opacity(0.5), radius: 10)
                             
-                        Text(isPro ? "Aligning Neural Net on Cloud GPU..." : "Processing locally on Neural Engine... (May download models on first run)")
+                        Text(progressStatus.isEmpty ? (isPro ? "Aligning..." : "Processing...") : progressStatus)
                             .font(.subheadline)
                             .foregroundColor(.gray)
+                        
+                        Text("\(Int(progressPercentage * 100))%")
+                            .font(.caption)
+                            .bold()
+                            .foregroundColor(.white)
                     }
                 } else if let errorMessage = errorMessage {
                     Text(errorMessage)
@@ -186,7 +194,12 @@ public struct SlicerView: View {
                     engine = LocalEngine() // Uses WhisperKit
                 }
                 
-                let result = try await engine.transcribeAudio(at: localURL)
+                let result = try await engine.transcribeAudio(at: localURL) { pct, msg in
+                    Task { @MainActor in
+                        self.progressPercentage = pct
+                        self.progressStatus = msg
+                    }
+                }
                 
                 await MainActor.run {
                     self.words = result
@@ -216,16 +229,8 @@ public struct SlicerView: View {
                 // Remove existing file if any
                 try? FileManager.default.removeItem(at: exportURL)
                 
-                // Create a destination file using standard WAV settings
-                let settings: [String: Any] = [
-                    AVFormatIDKey: Int(kAudioFormatLinearPCM),
-                    AVSampleRateKey: format.sampleRate,
-                    AVNumberOfChannelsKey: format.channelCount,
-                    AVLinearPCMBitDepthKey: 16,
-                    AVLinearPCMIsFloatKey: false,
-                    AVLinearPCMIsBigEndianKey: false
-                ]
-                let destFile = try AVAudioFile(forWriting: exportURL, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+                // Create a destination file using the source file's format settings
+                let destFile = try AVAudioFile(forWriting: exportURL, settings: format.settings)
                 
                 let frameCapacity: AVAudioFrameCount = 44100 // Process in 1 second chunks
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
