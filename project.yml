@@ -4,6 +4,11 @@ options:
   deploymentTarget:
     iOS: "16.0"
 
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: 0.8.0
+
 targets:
   LyricSlicerApp:
     type: application
@@ -11,6 +16,7 @@ targets:
     sources: 
       - path: LyricSlicerApp
       - path: Core
+      - path: LyricSlicerAU/UI
     info:
       path: LyricSlicerApp/Info.plist
       properties:
@@ -27,6 +33,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     dependencies:
       - target: LyricSlicerAU
+      - package: WhisperKit
 
   LyricSlicerAU:
     type: app-extension

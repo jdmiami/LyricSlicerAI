@@ -22,12 +22,10 @@ struct ContentView: View {
                     
                     Spacer()
                     
-                    // Placeholder for testing the AUv3 UI within the host app
-                    Text("AUv3 Plugin UI Sandbox")
-                        .font(.title3)
-                        .padding()
-                        .background(.ultraThinMaterial)
+                    // Sandbox for testing the AUv3 UI within the host app
+                    SlicerView()
                         .cornerRadius(12)
+                        .padding()
                     
                     Spacer()
                     
