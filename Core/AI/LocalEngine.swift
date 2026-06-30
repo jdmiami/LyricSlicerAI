@@ -31,8 +31,8 @@ public class LocalEngine: TranscriptionEngine {
                     for word in words {
                         wordSlices.append(WordSlice(
                             text: word.word, 
-                            startMs: Int(word.start * 1000), 
-                            endMs: Int(word.end * 1000)
+                            startMs: Double(word.start * 1000), 
+                            endMs: Double(word.end * 1000)
                         ))
                     }
                 }
