@@ -15,10 +15,13 @@ targets:
     platform: iOS
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.lyricslicer.LyricSlicerApp
+      SWIFT_OBJC_BRIDGING_HEADER: LyricSlicerAU/LyricSlicerAU-Bridging-Header.h
     sources: 
       - path: LyricSlicerApp
       - path: Core
       - path: LyricSlicerAU/UI
+      - path: LyricSlicerAU/Bridge
+      - path: LyricSlicerAU/DSP
     info:
       path: LyricSlicerApp/Info.plist
       properties:
