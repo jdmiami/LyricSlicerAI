@@ -50,9 +50,23 @@ const errorBanner = document.getElementById("error-banner");
 const currentProjectTitle = document.getElementById("current-project-title");
 const historyList = document.getElementById("history-list");
 
-// Waveform Canvas Elements
+// Zoom elements
+const zoomSlider = document.getElementById("zoom-slider");
+const btnZoomIn = document.getElementById("btn-zoom-in");
+const btnZoomOut = document.getElementById("btn-zoom-out");
+const waveformScrollContainer = document.getElementById("waveform-scroll-container");
 const waveformCanvas = document.getElementById("waveform-canvas");
 const waveformPlayhead = document.getElementById("waveform-playhead");
+
+// FX Rack elements
+const fxRateSlider = document.getElementById("fx-rate-slider");
+const labelPlaybackRate = document.getElementById("label-playback-rate");
+const fxGateSlider = document.getElementById("fx-gate-slider");
+const labelGateThreshold = document.getElementById("label-gate-threshold");
+const fxLowcutSlider = document.getElementById("fx-lowcut-slider");
+const labelLowcut = document.getElementById("label-lowcut");
+const fxDelaySlider = document.getElementById("fx-delay-slider");
+const labelDelay = document.getElementById("label-delay");
 
 // Audio Context & State
 let audioContext = null;
@@ -60,8 +74,8 @@ let decodedAudioBuffer = null;
 let activeSourceNode = null;
 let activeGainNode = null;
 let isPlaying = false;
-let engineMode = "local"; // "local" | "cloud" | "manual"
-let words = []; // Array of { text, startMs, endMs, isMuted }
+let engineMode = "local"; 
+let words = []; 
 let localTranscriber = null;
 let loadedModelName = null;
 let currentPlayheadInterval = null;
@@ -69,6 +83,13 @@ let playheadStartOffset = 0;
 let playheadStartTime = 0;
 let lastHighlightedIdx = -1;
 let currentFileLoaded = null;
+let zoomFactor = 1.0;
+
+// Web Audio API FX nodes
+let lowcutFilterNode = null;
+let gateCompressorNode = null;
+let delayNode = null;
+let delayFeedbackGainNode = null;
 
 // PWA Service Worker Registration
 if ("serviceWorker" in navigator) {
@@ -82,8 +103,6 @@ function initAnimations() {
   gsap.from("aside", { x: -30, opacity: 0, duration: 0.7, ease: "power3.out" });
   gsap.from("#drop-zone", { y: 30, opacity: 0, duration: 0.8, delay: 0.1, ease: "power3.out" });
   gsap.from("#local-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.15, ease: "power3.out" });
-  
-  // Load History items from Firestore
   loadFirestoreHistory();
 }
 
@@ -138,19 +157,11 @@ function updateActiveModeButton(activeBtn, color) {
 
 function slideInConfig(container) {
   container.classList.remove("hidden");
-  gsap.fromTo(container, 
-    { opacity: 0, y: -5 },
-    { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }
-  );
+  gsap.fromTo(container, { opacity: 0, y: -5 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" });
 }
 
 function slideOutConfig(container) {
-  gsap.to(container, {
-    opacity: 0,
-    y: -5,
-    duration: 0.2,
-    onComplete: () => container.classList.add("hidden")
-  });
+  gsap.to(container, { opacity: 0, y: -5, duration: 0.2, onComplete: () => container.classList.add("hidden") });
 }
 
 // Drop Zone Handlers
@@ -193,7 +204,7 @@ function handleFileSelection() {
   processAudio(file);
 }
 
-// Resampling Helper for local transcription (Whisper requires 16000Hz mono)
+// Resampling Helper for local transcription
 function resampleTo16kMono(audioBuffer) {
   const numChannels = audioBuffer.numberOfChannels;
   const originalSampleRate = audioBuffer.sampleRate;
@@ -255,7 +266,7 @@ async function processAudio(file) {
   }
 }
 
-// Local ONNX Dynamic Loader (Prevents top-level Safari script crash)
+// Local ONNX Dynamic Loader
 async function transcribeLocal() {
   localEngineWarning.classList.remove("hidden");
   const selectedModel = localModelSelect.value;
@@ -311,7 +322,7 @@ async function transcribeLocal() {
   }
 }
 
-// Cloud alignment via Vercel Proxy with dynamic model headers
+// Cloud alignment via Vercel Proxy
 async function transcribeCloud(file) {
   const colabURL = colabUrlInput.value.trim();
   if (!colabURL) {
@@ -396,7 +407,7 @@ async function saveProjectToFirestore() {
     };
     
     await db.collection("lyricslicer_history").add(docData);
-    loadFirestoreHistory(); // Reload sidebar list
+    loadFirestoreHistory(); 
   } catch (e) {
     console.error("Firestore save error:", e);
   }
@@ -422,7 +433,6 @@ async function loadFirestoreHistory() {
       const data = doc.data();
       const card = document.createElement("div");
       card.className = "history-item flex flex-col space-y-1";
-      
       const formattedDate = data.alignedAt ? new Date(data.alignedAt.seconds * 1000).toLocaleDateString() : "Just now";
       
       card.innerHTML = `
@@ -435,7 +445,6 @@ async function loadFirestoreHistory() {
       `;
       
       card.addEventListener("click", () => {
-        // Load the saved word segments immediately
         words = JSON.parse(data.slicesData);
         currentProjectTitle.textContent = data.fileName;
         loadedFileName.textContent = data.fileName;
@@ -473,8 +482,6 @@ function showError(msg) {
 
 function finishProcessing() {
   updateProgress(100, "Ready!");
-  
-  // Save metadata to Firestore
   saveProjectToFirestore();
   
   gsap.to(progressContainer, {
@@ -484,12 +491,9 @@ function finishProcessing() {
     onComplete: () => {
       progressContainer.classList.add("hidden");
       localEngineWarning.classList.add("hidden");
-      
       workspaceContainer.classList.remove("hidden");
-      gsap.fromTo(workspaceContainer, 
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
-      );
+      
+      gsap.fromTo(workspaceContainer, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" });
       
       drawWaveform();
       renderWordSlices();
@@ -513,86 +517,118 @@ function generateFallbackSlices() {
   return fallback;
 }
 
-// Waveform Canvas Drawer
+// Waveform Canvas Drawer with Dynamic Zoom Support
 function drawWaveform() {
   if (!decodedAudioBuffer) return;
   
-  const rect = waveformCanvas.parentElement.getBoundingClientRect();
-  waveformCanvas.width = rect.width * (window.devicePixelRatio || 1);
-  waveformCanvas.height = rect.height * (window.devicePixelRatio || 1);
-  waveformCanvas.style.width = '100%';
-  waveformCanvas.style.height = '100%';
+  const parentRect = waveformCanvas.parentElement.getBoundingClientRect();
+  const scaledWidth = parentRect.width * zoomFactor;
+  
+  // Set width dynamically for zoom scroll
+  waveformScrollContainer.style.width = `${scaledWidth}px`;
+  
+  waveformCanvas.width = scaledWidth * (window.devicePixelRatio || 1);
+  waveformCanvas.height = parentRect.height * (window.devicePixelRatio || 1);
+  waveformCanvas.style.width = `${scaledWidth}px`;
+  waveformCanvas.style.height = `${parentRect.height}px`;
   
   const ctx = waveformCanvas.getContext("2d");
   ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
   
-  const width = rect.width;
-  const height = rect.height;
+  const width = scaledWidth;
+  const height = parentRect.height;
   const rawData = decodedAudioBuffer.getChannelData(0);
   const step = Math.ceil(rawData.length / width);
   const amp = height / 2;
   
   ctx.clearRect(0, 0, width, height);
   
-  // Background lines
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-  ctx.lineWidth = 1;
-  for (let i = 50; i < width; i += 50) {
-    ctx.beginPath();
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i, height);
-    ctx.stroke();
-  }
-  
-  ctx.beginPath();
-  ctx.moveTo(0, amp);
-  ctx.lineTo(width, amp);
-  ctx.stroke();
-  
-  ctx.strokeStyle = "rgba(34, 211, 238, 0.6)"; // Cyan DAW theme waveform color
-  ctx.lineWidth = 2;
+  // Waveform lines drawing
+  ctx.strokeStyle = "rgba(34, 211, 238, 0.4)";
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   
   for (let i = 0; i < width; i++) {
     let min = 1.0;
     let max = -1.0;
     for (let j = 0; j < step; j++) {
-      const datum = rawData[(i * step) + j];
-      if (datum < min) min = datum;
-      if (datum > max) max = datum;
+      const idx = (i * step) + j;
+      if (idx < rawData.length) {
+        const datum = rawData[idx];
+        if (datum < min) min = datum;
+        if (datum > max) max = datum;
+      }
     }
     ctx.moveTo(i, amp + (min * amp));
     ctx.lineTo(i, amp + (max * amp));
   }
   ctx.stroke();
   
+  // Draw word boundaries & overlay aligned lyrics inside the waveform!
   words.forEach(word => {
     const duration = decodedAudioBuffer.duration * 1000;
     const startX = (word.startMs / duration) * width;
     const endX = (word.endMs / duration) * width;
     
+    // Silenced segment overlay
     if (word.isMuted) {
-      ctx.fillStyle = "rgba(239, 68, 68, 0.2)";
+      ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
       ctx.fillRect(startX, 0, endX - startX, height);
       
-      ctx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.35)";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(startX, 0);
-      ctx.lineTo(startX, height);
-      ctx.moveTo(endX, 0);
-      ctx.lineTo(endX, height);
+      ctx.moveTo(startX, 0); ctx.lineTo(startX, height);
+      ctx.moveTo(endX, 0); ctx.lineTo(endX, height);
       ctx.stroke();
     } else {
+      // Normal slice line divider
       ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(startX, 0);
-      ctx.lineTo(startX, height);
+      ctx.moveTo(startX, 0); ctx.lineTo(startX, height);
       ctx.stroke();
+    }
+    
+    // Draw text inside the slice track!
+    const sliceWidth = endX - startX;
+    if (sliceWidth > 18) {
+      ctx.fillStyle = word.isMuted ? "rgba(239, 68, 68, 0.4)" : "rgba(255, 255, 255, 0.7)";
+      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      ctx.textAlign = "center";
+      
+      // Cut text if container is narrow
+      let text = word.text;
+      if (ctx.measureText(text).width > sliceWidth) {
+        text = text.substring(0, Math.floor(sliceWidth / 6)) + "..";
+      }
+      ctx.fillText(text, startX + (sliceWidth / 2), 16);
     }
   });
 }
+
+// Zoom Handlers
+zoomSlider.addEventListener("input", () => {
+  zoomFactor = parseFloat(zoomSlider.value);
+  drawWaveform();
+  updatePlayheadVisualPosition();
+});
+
+btnZoomIn.addEventListener("click", () => {
+  let val = parseFloat(zoomSlider.value);
+  if (val < 12) {
+    zoomSlider.value = val + 1;
+    zoomSlider.dispatchEvent(new Event("input"));
+  }
+});
+
+btnZoomOut.addEventListener("click", () => {
+  let val = parseFloat(zoomSlider.value);
+  if (val > 1) {
+    zoomSlider.value = val - 1;
+    zoomSlider.dispatchEvent(new Event("input"));
+  }
+});
 
 // Seek on click
 waveformCanvas.addEventListener("click", (e) => {
@@ -607,10 +643,19 @@ waveformCanvas.addEventListener("click", (e) => {
   if (isPlaying) {
     startAudioPlayback(targetSeekTime);
   } else {
-    waveformPlayhead.style.transform = `translateX(${clickX}px)`;
+    updatePlayheadVisualPosition();
     playbackTimer.textContent = formatTime(targetSeekTime);
   }
 });
+
+function updatePlayheadVisualPosition() {
+  if (!decodedAudioBuffer) return;
+  const elapsed = isPlaying ? (audioContext.currentTime - playheadStartTime + playheadStartOffset) : playheadStartOffset;
+  const duration = decodedAudioBuffer.duration;
+  const canvasWidth = waveformCanvas.width / (window.devicePixelRatio || 1);
+  const playheadX = (elapsed / duration) * canvasWidth;
+  waveformPlayhead.style.transform = `translateX(${playheadX}px)`;
+}
 
 // Slices UI Renderer
 function renderWordSlices() {
@@ -622,30 +667,27 @@ function renderWordSlices() {
     chip.className = `word-chip ${word.isMuted ? "muted" : ""}`;
     chip.dataset.idx = idx;
     
-    // Inline Editable Input field
+    // Inline text inputs
     const textInput = document.createElement("input");
     textInput.type = "text";
     textInput.value = word.text;
     textInput.addEventListener("change", (e) => {
       word.text = e.target.value.trim();
-      // Push updated segments back to Firestore
+      drawWaveform();
       saveProjectToFirestore();
     });
-    // Prevent typing from toggling play/stop Spacebar trigger
     textInput.addEventListener("keydown", (e) => {
       e.stopPropagation();
     });
     
-    // Toggle Mute button inside chip
     const muteIndicator = document.createElement("span");
     muteIndicator.className = `w-2 h-2 rounded-full ${word.isMuted ? "bg-red-500" : "bg-cyan-400"}`;
     
     chip.appendChild(muteIndicator);
     chip.appendChild(textInput);
     
-    // Clicking the capsule outside of the input box toggles mute state
     chip.addEventListener("click", (e) => {
-      if (e.target === textInput) return; // Ignore input focus clicks
+      if (e.target === textInput) return;
       
       word.isMuted = !word.isMuted;
       if (word.isMuted) {
@@ -665,7 +707,6 @@ function renderWordSlices() {
         scheduleVolumeAutomation();
       }
       
-      // Update database status
       saveProjectToFirestore();
     });
     
@@ -693,11 +734,46 @@ function startAudioPlayback(offset = 0) {
   activeSourceNode = audioContext.createBufferSource();
   activeSourceNode.buffer = decodedAudioBuffer;
   
-  activeGainNode = audioContext.createGain();
-  activeSourceNode.connect(activeGainNode);
-  activeGainNode.connect(audioContext.destination);
+  // Set play rate (pitch/tempo link)
+  const playbackRate = parseFloat(fxRateSlider.value);
+  activeSourceNode.playbackRate.setValueAtTime(playbackRate, audioContext.currentTime);
   
+  // EQ Lowcut (Highpass BiquadFilter)
+  lowcutFilterNode = audioContext.createBiquadFilter();
+  lowcutFilterNode.type = "highpass";
+  const lowcutFreq = parseFloat(fxLowcutSlider.value);
+  lowcutFilterNode.frequency.setValueAtTime(lowcutFreq, audioContext.currentTime);
+  
+  // Noise Gate (DynamicsCompressor)
+  gateCompressorNode = audioContext.createDynamicsCompressor();
+  const gateThreshold = parseFloat(fxGateSlider.value);
+  gateCompressorNode.threshold.setValueAtTime(gateThreshold, audioContext.currentTime);
+  gateCompressorNode.ratio.setValueAtTime(20, audioContext.currentTime); // Hard gate limit
+  
+  // Studio Space Delay effect
+  delayNode = audioContext.createDelay(1.0);
+  delayNode.delayTime.setValueAtTime(0.3, audioContext.currentTime); // 300ms delay time
+  delayFeedbackGainNode = audioContext.createGain();
+  const feedbackVal = parseFloat(fxDelaySlider.value);
+  delayFeedbackGainNode.gain.setValueAtTime(feedbackVal, audioContext.currentTime);
+  
+  // Connect delay nodes
+  delayNode.connect(delayFeedbackGainNode);
+  delayFeedbackGainNode.connect(delayNode);
+  
+  activeGainNode = audioContext.createGain();
   activeGainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioContext.currentTime);
+  
+  // Audio Signal Chain Integration
+  // Source -> Lowcut -> NoiseGate -> Gain Node -> Space Delay Node (send)
+  activeSourceNode.connect(lowcutFilterNode);
+  lowcutFilterNode.connect(gateCompressorNode);
+  gateCompressorNode.connect(activeGainNode);
+  
+  // Connect Send effects
+  activeGainNode.connect(audioContext.destination);
+  activeGainNode.connect(delayNode);
+  delayNode.connect(audioContext.destination);
   
   scheduleVolumeAutomation(offset);
   
@@ -718,9 +794,18 @@ function stopAudioPlayback() {
   if (activeSourceNode) {
     try { activeSourceNode.stop(); } catch(e) {}
     activeSourceNode.disconnect();
+    if (lowcutFilterNode) lowcutFilterNode.disconnect();
+    if (gateCompressorNode) gateCompressorNode.disconnect();
+    if (delayNode) delayNode.disconnect();
+    if (delayFeedbackGainNode) delayFeedbackGainNode.disconnect();
     activeGainNode.disconnect();
+    
     activeSourceNode = null;
     activeGainNode = null;
+    lowcutFilterNode = null;
+    gateCompressorNode = null;
+    delayNode = null;
+    delayFeedbackGainNode = null;
   }
   isPlaying = false;
   btnPlay.innerHTML = `
@@ -740,6 +825,39 @@ function stopAudioPlayback() {
   });
   lastHighlightedIdx = -1;
 }
+
+// Real-time Sound Suite Sliders Listeners
+fxRateSlider.addEventListener("input", () => {
+  const rate = parseFloat(fxRateSlider.value);
+  labelPlaybackRate.textContent = `${rate.toFixed(2)}x`;
+  if (activeSourceNode && isPlaying) {
+    activeSourceNode.playbackRate.setValueAtTime(rate, audioContext.currentTime);
+  }
+});
+
+fxGateSlider.addEventListener("input", () => {
+  const dbVal = parseFloat(fxGateSlider.value);
+  labelGateThreshold.textContent = dbVal === -100 ? "Off" : `${dbVal}dB`;
+  if (gateCompressorNode && isPlaying) {
+    gateCompressorNode.threshold.setValueAtTime(dbVal, audioContext.currentTime);
+  }
+});
+
+fxLowcutSlider.addEventListener("input", () => {
+  const hz = parseFloat(fxLowcutSlider.value);
+  labelLowcut.textContent = hz === 10 ? "Flat" : `${hz}Hz`;
+  if (lowcutFilterNode && isPlaying) {
+    lowcutFilterNode.frequency.setValueAtTime(hz, audioContext.currentTime);
+  }
+});
+
+fxDelaySlider.addEventListener("input", () => {
+  const mix = parseFloat(fxDelaySlider.value);
+  labelDelay.textContent = mix === 0 ? "Dry" : `${Math.round(mix * 100)}%`;
+  if (delayFeedbackGainNode && isPlaying) {
+    delayFeedbackGainNode.gain.setValueAtTime(mix, audioContext.currentTime);
+  }
+});
 
 // Volume automator scheduler
 function scheduleVolumeAutomation(offsetSeconds = 0) {
@@ -782,9 +900,18 @@ function updatePlayheadProgress() {
   }
   
   const duration = decodedAudioBuffer.duration;
-  const rect = waveformCanvas.getBoundingClientRect();
-  const playheadX = (elapsed / duration) * rect.width;
+  const canvasWidth = waveformCanvas.width / (window.devicePixelRatio || 1);
+  const playheadX = (elapsed / duration) * canvasWidth;
   waveformPlayhead.style.transform = `translateX(${playheadX}px)`;
+  
+  // Horizontal scroll tracking to follow playhead in real-time DAW view
+  const scrollWrapper = waveformCanvas.parentElement.parentElement;
+  const scrollLeftLimit = scrollWrapper.scrollLeft;
+  const scrollWidthLimit = scrollLeftLimit + scrollWrapper.clientWidth;
+  
+  if (playheadX > scrollWidthLimit - 50 || playheadX < scrollLeftLimit) {
+    scrollWrapper.scrollLeft = playheadX - 100;
+  }
   
   const elapsedMs = elapsed * 1000;
   let activeIdx = -1;
@@ -855,64 +982,111 @@ function formatTime(secs) {
   return `${m}:${s}.${ms}`;
 }
 
-// Export to WAV & compile silenced segments client-side
+// Export processed audio including sound suite nodes using OfflineAudioContext
 btnExport.addEventListener("click", async () => {
   if (!decodedAudioBuffer) return;
-  btnExport.innerHTML = `<span>Exporting...</span>`;
+  btnExport.innerHTML = `<span>Processing FX...</span>`;
   btnExport.disabled = true;
   
-  setTimeout(() => {
-    try {
-      const numChannels = decodedAudioBuffer.numberOfChannels;
-      const length = decodedAudioBuffer.length;
-      const sampleRate = decodedAudioBuffer.sampleRate;
-      
-      const channels = [];
-      for (let i = 0; i < numChannels; i++) {
-        channels.push(new Float32Array(decodedAudioBuffer.getChannelData(i)));
+  try {
+    const sampleRate = decodedAudioBuffer.sampleRate;
+    const duration = decodedAudioBuffer.duration;
+    const numChannels = decodedAudioBuffer.numberOfChannels;
+    
+    // offline audio context to render the effects faster than realtime
+    const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+      numChannels,
+      decodedAudioBuffer.length,
+      sampleRate
+    );
+    
+    const offlineSource = offlineCtx.createBufferSource();
+    offlineSource.buffer = decodedAudioBuffer;
+    
+    // Apply speed rate
+    const playbackRate = parseFloat(fxRateSlider.value);
+    offlineSource.playbackRate.setValueAtTime(playbackRate, 0);
+    
+    // Low-cut
+    const filter = offlineCtx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(parseFloat(fxLowcutSlider.value), 0);
+    
+    // Noise Gate
+    const gate = offlineCtx.createDynamicsCompressor();
+    gate.threshold.setValueAtTime(parseFloat(fxGateSlider.value), 0);
+    gate.ratio.setValueAtTime(20, 0);
+    
+    // Delay Space
+    const delay = offlineCtx.createDelay(1.0);
+    delay.delayTime.setValueAtTime(0.3, 0);
+    const feedback = offlineCtx.createGain();
+    feedback.gain.setValueAtTime(parseFloat(fxDelaySlider.value), 0);
+    
+    delay.connect(feedback);
+    feedback.connect(delay);
+    
+    // Mute segments compiler (volume scheduler offline)
+    const volumeNode = offlineCtx.createGain();
+    volumeNode.gain.setValueAtTime(1.0, 0);
+    
+    words.forEach(word => {
+      if (word.isMuted) {
+        const startSecs = word.startMs / 1000;
+        const endSecs = word.endMs / 1000;
+        
+        volumeNode.gain.setValueAtTime(1.0, startSecs);
+        volumeNode.gain.setValueAtTime(0.0, startSecs + 0.005);
+        volumeNode.gain.setValueAtTime(0.0, endSecs);
+        volumeNode.gain.setValueAtTime(1.0, endSecs + 0.005);
       }
-      
-      words.forEach(word => {
-        if (word.isMuted) {
-          const startFrame = Math.floor((word.startMs / 1000) * sampleRate);
-          const endFrame = Math.floor((word.endMs / 1000) * sampleRate);
-          
-          for (let frame = startFrame; frame < endFrame; frame++) {
-            if (frame >= 0 && frame < length) {
-              for (let c = 0; c < numChannels; c++) {
-                channels[c][frame] = 0.0;
-              }
-            }
-          }
-        }
-      });
-      
-      const buffer = encodeWAV(channels, sampleRate);
-      const blob = new Blob([buffer], { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
-      
-      shareLink.href = url;
-      shareLink.download = `${loadedFileName.textContent.replace(/\.[^/.]+$/, "")}_muted.wav`;
-      shareLink.classList.remove("hidden");
-      
-      gsap.fromTo(shareLink, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
-      
-      btnExport.innerHTML = `<span>Export Done</span>`;
-      btnExport.disabled = false;
-      
-      setTimeout(() => {
-        btnExport.innerHTML = `
-          <svg class="w-4 h-4" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
-          </svg>
-          <span>Export WAV Stem</span>`;
-      }, 2000);
-      
-    } catch (err) {
-      alert("Export failed: " + err.message);
-      btnExport.disabled = false;
+    });
+    
+    // Connect chain
+    offlineSource.connect(filter);
+    filter.connect(gate);
+    gate.connect(volumeNode);
+    
+    volumeNode.connect(offlineCtx.destination);
+    volumeNode.connect(delay);
+    delay.connect(offlineCtx.destination);
+    
+    offlineSource.start(0);
+    
+    // Render
+    const renderedBuffer = await offlineCtx.startRendering();
+    
+    // Write WAV file
+    const channels = [];
+    for (let c = 0; c < numChannels; c++) {
+      channels.push(renderedBuffer.getChannelData(c));
     }
-  }, 100);
+    
+    const wavBuffer = encodeWAV(channels, sampleRate);
+    const blob = new Blob([wavBuffer], { type: "audio/wav" });
+    const url = URL.createObjectURL(blob);
+    
+    shareLink.href = url;
+    shareLink.download = `${currentProjectTitle.textContent.replace(/\.[^/.]+$/, "")}_sliced_daw.wav`;
+    shareLink.classList.remove("hidden");
+    
+    gsap.fromTo(shareLink, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
+    
+    btnExport.innerHTML = `<span>Done!</span>`;
+    btnExport.disabled = false;
+    
+    setTimeout(() => {
+      btnExport.innerHTML = `
+        <svg class="w-4 h-4" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+        </svg>
+        <span>Export WAV Stem</span>`;
+    }, 2000);
+    
+  } catch (err) {
+    alert("Offline rendering failed: " + err.message);
+    btnExport.disabled = false;
+  }
 });
 
 // WAV encoder helper

@@ -97,29 +97,11 @@ input[type="range"]::-webkit-slider-runnable-track {
 }
 
 /* Waveform editor container */
-#waveform-container {
-  position: relative;
-  width: 100%;
-  height: 140px;
-  background: #08090c;
-  border-radius: 14px;
-  overflow: hidden;
+#waveform-scroll-container {
+  transition: width 0.2s ease-out;
 }
 #waveform-canvas {
-  width: 100%;
-  height: 100%;
   cursor: pointer;
-}
-#waveform-playhead {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1.5px;
-  height: 100%;
-  background: #22d3ee;
-  box-shadow: 0 0 8px #22d3ee, 0 0 15px #22d3ee;
-  pointer-events: none;
-  transform: translateX(0);
 }
 
 /* Sidebar History Items */

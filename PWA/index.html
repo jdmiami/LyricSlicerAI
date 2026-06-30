@@ -172,12 +172,22 @@
           <div class="glass-card p-5 border border-[#1f2833]/50 rounded-2xl space-y-4">
             <div class="flex justify-between items-center px-1">
               <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Visual Waveform Timeline</span>
-              <span class="text-[10px] text-gray-500">Seek by clicking anywhere on the wave</span>
+              
+              <!-- Zoom Transport controls -->
+              <div class="flex items-center space-x-3 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                <span class="text-[10px] text-gray-500">Timeline Zoom:</span>
+                <button id="btn-zoom-out" class="w-6 h-6 bg-white/5 hover:bg-white/10 rounded flex items-center justify-center text-xs font-bold font-mono">-</button>
+                <input type="range" id="zoom-slider" min="1" max="12" step="0.5" value="1" class="w-24 accent-cyan-400">
+                <button id="btn-zoom-in" class="w-6 h-6 bg-white/5 hover:bg-white/10 rounded flex items-center justify-center text-xs font-bold font-mono">+</button>
+              </div>
             </div>
             
-            <div id="waveform-container" class="border border-[#1f2833]/30">
-              <canvas id="waveform-canvas"></canvas>
-              <div id="waveform-playhead"></div>
+            <!-- Horizontal scrollable timeline track container -->
+            <div class="overflow-x-auto custom-scrollbar rounded-xl border border-[#1f2833]/30 bg-[#08090c] p-2">
+              <div id="waveform-scroll-container" class="relative w-full h-[180px]">
+                <canvas id="waveform-canvas" class="block h-full"></canvas>
+                <div id="waveform-playhead" class="absolute top-0 bottom-0 left-0 w-[1.5px] bg-[#22d3ee] pointer-events-none"></div>
+              </div>
             </div>
           </div>
 
@@ -191,6 +201,55 @@
             <div class="glass-card p-6 border border-[#1f2833]/50 rounded-2xl">
               <div id="slices-timeline" class="flex flex-wrap gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 <!-- Word Capsules injected here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Vocal Effect Rack (Sound Suite) -->
+          <div class="glass-card p-6 border border-[#1f2833]/50 rounded-2xl space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse mr-2"></span>
+              Vocal Processing FX Suite
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 pt-2">
+              <!-- Pitch / Playback Rate -->
+              <div class="bg-black/40 border border-white/5 rounded-xl p-4 space-y-2 flex flex-col justify-between">
+                <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider">
+                  <span class="text-white">Pitch & Rate</span>
+                  <span id="label-playback-rate" class="text-cyan-400">1.0x</span>
+                </div>
+                <input type="range" id="fx-rate-slider" min="0.5" max="2.0" step="0.05" value="1.0" class="w-full accent-cyan-400">
+                <span class="text-[9px] text-gray-500">Alters speed and pitch rate.</span>
+              </div>
+
+              <!-- Noise Gate -->
+              <div class="bg-black/40 border border-white/5 rounded-xl p-4 space-y-2 flex flex-col justify-between">
+                <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider">
+                  <span class="text-white">Noise Gate</span>
+                  <span id="label-gate-threshold" class="text-cyan-400">Off</span>
+                </div>
+                <input type="range" id="fx-gate-slider" min="-100" max="-20" step="5" value="-100" class="w-full accent-cyan-400">
+                <span class="text-[9px] text-gray-500">Silences background noise in breaks.</span>
+              </div>
+
+              <!-- Low-Cut (EQ High Pass) -->
+              <div class="bg-black/40 border border-white/5 rounded-xl p-4 space-y-2 flex flex-col justify-between">
+                <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider">
+                  <span class="text-white">Low-Cut Filter</span>
+                  <span id="label-lowcut" class="text-cyan-400">Flat</span>
+                </div>
+                <input type="range" id="fx-lowcut-slider" min="10" max="300" step="10" value="10" class="w-full accent-cyan-400">
+                <span class="text-[9px] text-gray-500">Eliminates low-end hum & rumble.</span>
+              </div>
+
+              <!-- High-Cut & Reverb Space -->
+              <div class="bg-black/40 border border-white/5 rounded-xl p-4 space-y-2 flex flex-col justify-between">
+                <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider">
+                  <span class="text-white">Delay Feedback</span>
+                  <span id="label-delay" class="text-cyan-400">Dry</span>
+                </div>
+                <input type="range" id="fx-delay-slider" min="0" max="0.8" step="0.05" value="0" class="w-full accent-cyan-400">
+                <span class="text-[9px] text-gray-500">Adds space and echo to sliced ends.</span>
               </div>
             </div>
           </div>
