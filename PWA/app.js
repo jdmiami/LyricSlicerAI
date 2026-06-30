@@ -13,6 +13,8 @@ const btnLocalMode = document.getElementById("btn-local-mode");
 const btnCloudMode = document.getElementById("btn-cloud-mode");
 const colabConfigContainer = document.getElementById("colab-config-container");
 const colabUrlInput = document.getElementById("colab-url-input");
+const localConfigContainer = document.getElementById("local-config-container");
+const localModelSelect = document.getElementById("local-model-select");
 const dropZone = document.getElementById("drop-zone");
 const audioFileInput = document.getElementById("audio-file-input");
 const loadedFileName = document.getElementById("loaded-file-name");
@@ -41,33 +43,48 @@ let isPlaying = false;
 let isProMode = false;
 let words = []; // Array of { text, startMs, endMs, isMuted }
 let localTranscriber = null;
+let loadedModelName = null;
 let currentPlayheadInterval = null;
 let playheadStartOffset = 0;
 let playheadStartTime = 0;
 let lastHighlightedIdx = -1;
 
-// GSAP Initial Page Entrance Animation
-window.addEventListener("DOMContentLoaded", () => {
+// GSAP Initial Page Entrance Animation - Fixed readyState Race Condition
+function initAnimations() {
   // Fade in body
   gsap.to("body", { opacity: 1, duration: 0.6, ease: "power2.out" });
   
   // Stagger entry of main layout components
   gsap.from("header", { y: -20, opacity: 0, duration: 0.6, ease: "power3.out" });
   gsap.from("#drop-zone", { y: 30, opacity: 0, duration: 0.8, delay: 0.1, ease: "power3.out" });
+  gsap.from("#local-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.15, ease: "power3.out" });
   gsap.from("#colab-config-container", { y: 20, opacity: 0, duration: 0.6, delay: 0.2, ease: "power3.out" });
-});
+}
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initAnimations);
+} else {
+  initAnimations();
+}
 
 // Set default Colab URL
 colabUrlInput.value = localStorage.getItem("colab_url") || "";
 
-// Toggle Engine Modes (GSAP Automated Switch Animation)
+// Toggle Engine Modes (GSAP Switch Animation)
 btnLocalMode.addEventListener("click", () => {
   if (isProMode) {
     isProMode = false;
     gsap.to(btnLocalMode, { backgroundColor: "#2563eb", color: "#ffffff", duration: 0.3, ease: "power1.out" });
     gsap.to(btnCloudMode, { backgroundColor: "transparent", color: "#9ca3af", duration: 0.3, ease: "power1.out" });
     
-    // Animate colab container out
+    // Slide local configuration back in
+    localConfigContainer.classList.remove("hidden");
+    gsap.fromTo(localConfigContainer, 
+      { opacity: 0, y: -10 },
+      { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
+    );
+
+    // Slide colab container out
     gsap.to(colabConfigContainer, {
       opacity: 0,
       y: -10,
@@ -83,12 +100,20 @@ btnCloudMode.addEventListener("click", () => {
     gsap.to(btnCloudMode, { backgroundColor: "#7c3aed", color: "#ffffff", duration: 0.3, ease: "power1.out" });
     gsap.to(btnLocalMode, { backgroundColor: "transparent", color: "#9ca3af", duration: 0.3, ease: "power1.out" });
     
-    // Animate colab container in
+    // Slide colab container in
     colabConfigContainer.classList.remove("hidden");
     gsap.fromTo(colabConfigContainer, 
       { opacity: 0, y: -10 },
       { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
     );
+
+    // Slide local selector out
+    gsap.to(localConfigContainer, {
+      opacity: 0,
+      y: -10,
+      duration: 0.3,
+      onComplete: () => localConfigContainer.classList.add("hidden")
+    });
   }
 });
 
@@ -120,7 +145,7 @@ function handleFileSelection() {
   const file = audioFileInput.files[0];
   if (!file) return;
   
-  // Show loaded file label with GSAP animation
+  // Show loaded file label
   loadedFileName.textContent = file.name;
   loadedFileName.classList.remove("hidden");
   gsap.fromTo(loadedFileName, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
@@ -196,14 +221,17 @@ async function processAudio(file) {
   }
 }
 
-// Local ONNX Whisper Engine
+// Local ONNX Multi-AI Engine
 async function transcribeLocal() {
   localEngineWarning.classList.remove("hidden");
-  updateProgress(25, "Loading local AI engine (openai/whisper-tiny)...");
+  
+  const selectedModel = localModelSelect.value;
+  updateProgress(25, `Loading local AI engine (${selectedModel.split("/")[1]})...`);
   
   try {
-    if (!localTranscriber) {
-      localTranscriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+    // If model selection has changed, reload the pipeline
+    if (!localTranscriber || loadedModelName !== selectedModel) {
+      localTranscriber = await pipeline('automatic-speech-recognition', selectedModel, {
         progress_callback: (data) => {
           if (data.status === 'downloading') {
             const pct = Math.round(data.progress || 0);
@@ -213,6 +241,7 @@ async function transcribeLocal() {
           }
         }
       });
+      loadedModelName = selectedModel;
     }
     
     updateProgress(55, "Resampling audio stem to 16kHz...");
@@ -259,7 +288,6 @@ async function transcribeCloud(file) {
   formData.append("file", file);
   
   try {
-    // Send to our local Vercel proxy API instead of directly to Colab to avoid HTTPS CORS blocks
     const res = await fetch("/api/align", {
       method: "POST",
       headers: {
@@ -270,7 +298,7 @@ async function transcribeCloud(file) {
     
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Server returned error: ${errText}`);
+      throw new Error(`Server error: ${errText}`);
     }
     
     updateProgress(85, "Stitching cloud alignment...");
@@ -292,8 +320,6 @@ async function transcribeCloud(file) {
 function updateProgress(percentage, status) {
   progressStatus.textContent = status;
   progressPercentage.textContent = `${Math.round(percentage)}%`;
-  
-  // Animate progress bar fill smoothly using GSAP
   gsap.to(progressBarFill, { width: `${percentage}%`, duration: 0.3, ease: "power1.out" });
 }
 
@@ -310,7 +336,6 @@ function finishProcessing(fallbackWords = null) {
   }
   updateProgress(100, "Ready!");
   
-  // Fade out progress and slide in the workspace beautifully
   gsap.to(progressContainer, {
     opacity: 0,
     y: -10,
@@ -360,7 +385,6 @@ function renderWordSlices() {
       word.isMuted = !word.isMuted;
       if (word.isMuted) {
         chip.classList.add("muted");
-        // Pop bounce animation on mute
         gsap.fromTo(chip, { scale: 1 }, { scale: 0.95, duration: 0.2, yoyo: true, repeat: 1 });
       } else {
         chip.classList.remove("muted");
@@ -403,10 +427,8 @@ function startAudioPlayback(offset = 0) {
   activeSourceNode.connect(activeGainNode);
   activeGainNode.connect(audioContext.destination);
   
-  // Set starting volume
   activeGainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioContext.currentTime);
   
-  // Schedule mute/unmute events
   scheduleVolumeAutomation(offset);
   
   activeSourceNode.start(0, offset);
@@ -439,7 +461,6 @@ function stopAudioPlayback() {
   clearInterval(currentPlayheadInterval);
   playbackTimer.textContent = "00:00";
   
-  // Clear all chip highlights
   words.forEach((_, idx) => {
     const chip = slicesTimeline.children[idx];
     if (chip) {
@@ -526,7 +547,6 @@ function updatePlayheadProgress() {
           overwrite: "auto"
         });
         
-        // Auto scroll container to keep active chip visible
         activeChip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
       }
     }
@@ -597,7 +617,6 @@ btnExport.addEventListener("click", async () => {
       shareLink.download = "LyricSlicer_MutedStem.wav";
       shareLink.classList.remove("hidden");
       
-      // Animate entry of Share Button
       gsap.fromTo(shareLink, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
       
       btnExport.innerHTML = `<span>Export Done</span>`;

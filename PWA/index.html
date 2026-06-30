@@ -64,6 +64,19 @@
   </header>
 
   <main class="max-w-4xl mx-auto px-6 mt-8 space-y-6">
+    <!-- Local AI Model Selector -->
+    <div id="local-config-container" class="glass-card p-6 border border-white/5 rounded-2xl space-y-3">
+      <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-400">Local AI Engine Settings</h3>
+      <div class="flex items-center space-x-3">
+        <span class="text-xs text-gray-400">Choose Whisper Model:</span>
+        <select id="local-model-select" class="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+          <option value="Xenova/whisper-tiny">Whisper Tiny (75MB - Fastest)</option>
+          <option value="Xenova/whisper-base">Whisper Base (140MB - Balanced)</option>
+          <option value="Xenova/whisper-small">Whisper Small (460MB - Accurate)</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Colab Config (Shown only for Cloud Mode) -->
     <div id="colab-config-container" class="hidden glass-card p-6 border border-white/5 rounded-2xl space-y-4">
       <h3 class="text-sm font-semibold uppercase tracking-wider text-purple-400">Cloud Configuration</h3>
