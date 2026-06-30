@@ -233,7 +233,7 @@ public struct SlicerView: View {
                             // Check if currentMs falls within any muted word
                             var isMuted = false
                             for word in words {
-                                if currentMs >= word.startTime * 1000.0 && currentMs <= word.endTime * 1000.0 {
+                                if currentMs >= word.startMs && currentMs <= word.endMs {
                                     isMuted = word.isMuted
                                     break
                                 }
