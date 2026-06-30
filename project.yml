@@ -56,3 +56,8 @@ targets:
                 version: 1.0.0
           NSExtensionPointIdentifier: com.apple.AudioUnit-UI
           NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SlicerAudioUnit"
+    dependencies:
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreAudio.framework
+      - sdk: CoreMedia.framework
