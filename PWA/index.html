@@ -44,7 +44,7 @@
   <header class="border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
     <div class="flex items-center space-x-3">
       <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
       </div>
@@ -89,7 +89,7 @@
     <div id="drop-zone" class="glass-card border-2 border-dashed border-white/10 hover:border-blue-500/50 rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[220px]">
       <input type="file" id="audio-file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg,audio/*" class="hidden">
       <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 transition-transform duration-300 drop-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-400" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
       </div>
@@ -117,7 +117,16 @@
         <p class="text-xs text-gray-500">Tap word to toggle mute/erase (Lock timing)</p>
       </div>
       
-      <!-- Scrolling Timeline -->
+      <!-- High-End Waveform Zoom & Scroll Editor -->
+      <div class="glass-card p-4 border border-white/5 rounded-2xl space-y-4">
+        <!-- Canvas Waveform & Interactive Playhead -->
+        <div id="waveform-container">
+          <canvas id="waveform-canvas"></canvas>
+          <div id="waveform-playhead"></div>
+        </div>
+      </div>
+
+      <!-- Scrolling Lyrics Timeline Grid -->
       <div class="glass-card p-6 border border-white/5 rounded-2xl">
         <div id="slices-timeline" class="flex flex-wrap gap-2.5 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
           <!-- Dynamic words chips injected here -->
@@ -128,12 +137,12 @@
       <div class="glass-card p-6 border border-white/5 rounded-2xl flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center space-x-3">
           <button id="btn-play" class="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-blue-500/20">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
           </button>
           <button id="btn-stop" class="w-12 h-12 rounded-full bg-white/5 text-gray-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
             </svg>
@@ -146,7 +155,7 @@
         
         <!-- Live Playhead Progress -->
         <div class="flex-1 max-w-[200px] flex items-center space-x-3">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.983 5.983 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.982 3.982 0 0013 10a3.982 3.982 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
           </svg>
           <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.8" class="w-full accent-blue-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer">
@@ -155,14 +164,14 @@
         <!-- Export & Share -->
         <div class="flex items-center space-x-3">
           <button id="btn-export" class="px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-transform flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
             </svg>
             <span>Export Stem</span>
           </button>
           
           <a id="share-link" class="hidden px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l4.894-2.447m0 0A3.001 3.001 0 1017 8c0 .11-.006.22-.018.328l-4.895 2.447m0 0a3.001 3.001 0 11-4.829 3.478l-4.894-2.447m4.894 2.447a3.001 3.001 0 114.829 3.478l-4.894-2.447" />
             </svg>
             <span>Download & Share</span>

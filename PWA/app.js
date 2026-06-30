@@ -34,6 +34,10 @@ const btnExport = document.getElementById("btn-export");
 const shareLink = document.getElementById("share-link");
 const errorBanner = document.getElementById("error-banner");
 
+// Waveform Canvas Elements
+const waveformCanvas = document.getElementById("waveform-canvas");
+const waveformPlayhead = document.getElementById("waveform-playhead");
+
 // Audio Context & State
 let audioContext = null;
 let decodedAudioBuffer = null;
@@ -349,6 +353,9 @@ function finishProcessing(fallbackWords = null) {
         { opacity: 0, y: 30 },
         { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
       );
+      
+      // Draw Waveform and Render Words
+      drawWaveform();
       renderWordSlices();
     }
   });
@@ -370,7 +377,111 @@ function generateFallbackSlices() {
   return fallback;
 }
 
-// Slices UI Renderer (GSAP Stagger Intro)
+// Waveform Canvas Drawer
+function drawWaveform() {
+  if (!decodedAudioBuffer) return;
+  
+  // Set canvas dimensions
+  const rect = waveformCanvas.parentElement.getBoundingClientRect();
+  waveformCanvas.width = rect.width * (window.devicePixelRatio || 1);
+  waveformCanvas.height = rect.height * (window.devicePixelRatio || 1);
+  waveformCanvas.style.width = '100%';
+  waveformCanvas.style.height = '100%';
+  
+  const ctx = waveformCanvas.getContext("2d");
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  
+  const width = rect.width;
+  const height = rect.height;
+  const rawData = decodedAudioBuffer.getChannelData(0); // Left channel
+  const step = Math.ceil(rawData.length / width);
+  const amp = height / 2;
+  
+  ctx.clearRect(0, 0, width, height);
+  
+  // Draw Background Grid Lines
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.lineWidth = 1;
+  for (let i = 50; i < width; i += 50) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, height);
+    ctx.stroke();
+  }
+  
+  // Draw Center Line
+  ctx.beginPath();
+  ctx.moveTo(0, amp);
+  ctx.lineTo(width, amp);
+  ctx.stroke();
+  
+  // Draw Downsampled Waveform Peaks
+  ctx.strokeStyle = "rgba(59, 130, 246, 0.5)"; // Blue semitransparent
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  
+  for (let i = 0; i < width; i++) {
+    let min = 1.0;
+    let max = -1.0;
+    for (let j = 0; j < step; j++) {
+      const datum = rawData[(i * step) + j];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+    ctx.moveTo(i, amp + (min * amp));
+    ctx.lineTo(i, amp + (max * amp));
+  }
+  ctx.stroke();
+  
+  // Draw word boundaries and muted segments
+  words.forEach(word => {
+    const duration = decodedAudioBuffer.duration * 1000;
+    const startX = (word.startMs / duration) * width;
+    const endX = (word.endMs / duration) * width;
+    
+    if (word.isMuted) {
+      ctx.fillStyle = "rgba(239, 68, 68, 0.2)"; // Red transparent fill for muted slices
+      ctx.fillRect(startX, 0, endX - startX, height);
+      
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX, height);
+      ctx.moveTo(endX, 0);
+      ctx.lineTo(endX, height);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX, height);
+      ctx.stroke();
+    }
+  });
+}
+
+// Waveform click-to-seek logic
+waveformCanvas.addEventListener("click", (e) => {
+  if (!decodedAudioBuffer) return;
+  const rect = waveformCanvas.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const ratio = clickX / rect.width;
+  const targetSeekTime = ratio * decodedAudioBuffer.duration;
+  
+  playheadStartOffset = targetSeekTime;
+  
+  if (isPlaying) {
+    startAudioPlayback(targetSeekTime);
+  } else {
+    // Update playhead visually
+    waveformPlayhead.style.transform = `translateX(${clickX}px)`;
+    playbackTimer.textContent = formatTime(targetSeekTime);
+  }
+});
+
+// Slices UI Renderer
 function renderWordSlices() {
   slicesTimeline.innerHTML = "";
   lastHighlightedIdx = -1;
@@ -391,6 +502,8 @@ function renderWordSlices() {
         gsap.fromTo(chip, { scale: 1 }, { scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 });
       }
       
+      // Update canvas to draw the red silence overlay immediately
+      drawWaveform();
       shareLink.classList.add("hidden");
       
       if (isPlaying) {
@@ -434,14 +547,14 @@ function startAudioPlayback(offset = 0) {
   activeSourceNode.start(0, offset);
   isPlaying = true;
   btnPlay.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>`;
   
   playheadStartTime = audioContext.currentTime;
   playheadStartOffset = offset;
   
-  currentPlayheadInterval = setInterval(updatePlayheadProgress, 100);
+  currentPlayheadInterval = setInterval(updatePlayheadProgress, 30); // 30fps update for playhead
 }
 
 function stopAudioPlayback() {
@@ -454,12 +567,13 @@ function stopAudioPlayback() {
   }
   isPlaying = false;
   btnPlay.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-0.5" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
     </svg>`;
   
   clearInterval(currentPlayheadInterval);
   playbackTimer.textContent = "00:00";
+  waveformPlayhead.style.transform = `translateX(0px)`;
   
   words.forEach((_, idx) => {
     const chip = slicesTimeline.children[idx];
@@ -499,7 +613,7 @@ function scheduleVolumeAutomation(offsetSeconds = 0) {
   });
 }
 
-// Updates playing highlight with smooth GSAP scaling transitions
+// Updates playing highlight with smooth GSAP scaling transitions and playhead scroll
 function updatePlayheadProgress() {
   if (!isPlaying) return;
   const elapsed = audioContext.currentTime - playheadStartTime + playheadStartOffset;
@@ -509,6 +623,12 @@ function updatePlayheadProgress() {
     stopAudioPlayback();
     return;
   }
+  
+  // Position playhead line on waveform
+  const duration = decodedAudioBuffer.duration;
+  const rect = waveformCanvas.getBoundingClientRect();
+  const playheadX = (elapsed / duration) * rect.width;
+  waveformPlayhead.style.transform = `translateX(${playheadX}px)`;
   
   const elapsedMs = elapsed * 1000;
   let activeIdx = -1;
@@ -559,11 +679,14 @@ btnPlay.addEventListener("click", () => {
   if (isPlaying) {
     stopAudioPlayback();
   } else {
-    startAudioPlayback(0);
+    startAudioPlayback(playheadStartOffset);
   }
 });
 
-btnStop.addEventListener("click", stopAudioPlayback);
+btnStop.addEventListener("click", () => {
+  stopAudioPlayback();
+  playheadStartOffset = 0;
+});
 
 volumeSlider.addEventListener("input", () => {
   if (activeGainNode) {
@@ -624,7 +747,7 @@ btnExport.addEventListener("click", async () => {
       
       setTimeout(() => {
         btnExport.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
           </svg>
           <span>Export Stem</span>`;
@@ -676,3 +799,6 @@ function writeString(view, offset, string) {
     view.setUint8(offset + i, string.charCodeAt(i));
   }
 }
+
+// Redraw canvas on window resize
+window.addEventListener("resize", drawWaveform);
