@@ -4,27 +4,28 @@ public struct WaveformTimeline: View {
     @Binding var words: [WordSlice]
     let totalDurationMs: Double
     
+    // 100 pixels per second = 0.1 pixels per millisecond
+    let pixelsPerMs: CGFloat = 0.1
+    
     public var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
+        let totalWidth = CGFloat(totalDurationMs) * pixelsPerMs
+        
+        ZStack(alignment: .leading) {
+            // Background timeline track
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.1))
+                .frame(width: totalWidth, height: 80)
             
-            ZStack(alignment: .leading) {
-                // Background timeline track
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.1))
-                    .frame(height: 80)
+            // Render Word Blocks
+            ForEach($words) { $word in
+                let startX = CGFloat(word.startMs) * pixelsPerMs
+                let wordWidth = CGFloat(word.endMs - word.startMs) * pixelsPerMs
                 
-                // Render Word Blocks
-                ForEach($words) { $word in
-                    let startRatio = word.startMs / totalDurationMs
-                    let durationRatio = (word.endMs - word.startMs) / totalDurationMs
-                    
-                    WordBlock(word: $word)
-                        .frame(width: width * CGFloat(durationRatio), height: 80)
-                        .offset(x: width * CGFloat(startRatio))
-                }
+                WordBlock(word: $word)
+                    .frame(width: wordWidth, height: 80)
+                    .offset(x: startX)
             }
-            .frame(height: 80)
         }
+        .frame(width: max(totalWidth, 100), height: 80)
     }
 }

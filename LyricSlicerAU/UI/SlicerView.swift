@@ -1,19 +1,24 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import AVFoundation
 
 public struct SlicerView: View {
     var isPro: Bool
     var colabURL: String
+    var audioUnit: SlicerAudioUnit? = nil
     
     @State private var words: [WordSlice] = []
     @State private var isProcessing: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var showingFilePicker = false
     
     // Mock audio duration for UI layout
     let totalDurationMs: Double = 5000 
     
-    public init(isPro: Bool = false, colabURL: String = "") {
+    public init(isPro: Bool = false, colabURL: String = "", audioUnit: SlicerAudioUnit? = nil) {
         self.isPro = isPro
         self.colabURL = colabURL
+        self.audioUnit = audioUnit
     }
 
     public var body: some View {
@@ -28,15 +33,18 @@ public struct SlicerView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     Spacer()
-                    Button(action: processAudio) {
-                        Image(systemName: "wand.and.stars")
-                            .foregroundColor(.white)
-                            .padding(8)
-                            .background(
-                                isPro ? Color.purple.opacity(0.8) : Color.blue.opacity(0.8)
-                            )
-                            .cornerRadius(8)
-                            .shadow(color: isPro ? .purple : .blue, radius: isProcessing ? 10 : 2)
+                    Button(action: { showingFilePicker = true }) {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                            Text("Load Audio")
+                        }
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(
+                            isPro ? Color.purple.opacity(0.8) : Color.blue.opacity(0.8)
+                        )
+                        .cornerRadius(8)
+                        .shadow(color: isPro ? .purple : .blue, radius: isProcessing ? 10 : 2)
                     }
                     .disabled(isProcessing)
                 }
@@ -60,30 +68,60 @@ public struct SlicerView: View {
                         .multilineTextAlignment(.center)
                         .padding()
                 } else if words.isEmpty {
-                    Text("Tap the wand to slice audio")
+                    Text("Load an audio file to begin slicing")
                         .foregroundColor(.gray)
                 } else {
-                    WaveformTimeline(words: $words, totalDurationMs: totalDurationMs)
-                        .padding()
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        WaveformTimeline(words: $words, totalDurationMs: totalDurationMs)
+                            .padding()
+                    }
                 }
                 
                 Spacer()
             }
         }
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.audio],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    processAudio(at: url)
+                }
+            case .failure(let error):
+                self.errorMessage = "Failed to select file: \(error.localizedDescription)"
+            }
+        }
     }
     
-    private func processAudio() {
-        guard let url = Bundle.main.url(forResource: "test_audio", withExtension: "wav") else {
-            self.errorMessage = "test_audio.wav not found in app bundle!"
-            return
-        }
-        
+    private func processAudio(at url: URL) {
         isProcessing = true
         errorMessage = nil
         words = []
         
+        // Try accessing security-scoped resource in case it's outside the app sandbox
+        let gotAccess = url.startAccessingSecurityScopedResource()
+        
         Task {
+            defer {
+                if gotAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            
             do {
+                // Load the audio buffer into the audio unit
+                if let unit = audioUnit {
+                    let audioFile = try AVAudioFile(forReading: url)
+                    if let format = AVAudioFormat(standardFormatWithSampleRate: 44100.0, channels: 2),
+                       let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(audioFile.length)) {
+                        try audioFile.read(into: buffer)
+                        unit.loadAudioBuffer(buffer)
+                    }
+                }
+                
                 let engine: TranscriptionEngine
                 if isPro {
                     engine = CloudEngine(apiURL: colabURL)

@@ -61,7 +61,7 @@ targets:
                 type: aumu
                 version: 1.0.0
           NSExtensionPointIdentifier: com.apple.AudioUnit-UI
-          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SlicerAudioUnit"
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).AudioUnitViewController"
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
