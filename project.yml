@@ -22,6 +22,7 @@ targets:
     info:
       path: LyricSlicerApp/Info.plist
       properties:
+        CFBundleDisplayName: "LyricSlicer AI"
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities: [arm64]
         UISupportedInterfaceOrientations:
@@ -48,6 +49,7 @@ targets:
     info:
       path: LyricSlicerAU/Info.plist
       properties:
+        CFBundleDisplayName: "LyricSlicer AU"
         NSExtension:
           NSExtensionAttributes:
             AudioComponentBundle: com.lyricslicer.LyricSlicerApp.LyricSlicerAU
