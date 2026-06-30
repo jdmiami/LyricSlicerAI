@@ -210,8 +210,8 @@ public struct SlicerView: View {
                 let sourceFile = try AVAudioFile(forReading: sourceURL)
                 let format = sourceFile.processingFormat
                 
-                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let exportURL = documentsPath.appendingPathComponent("LyricSlicer_Export.wav")
+                let tempDir = FileManager.default.temporaryDirectory
+                let exportURL = tempDir.appendingPathComponent("LyricSlicer_Export.wav")
                 
                 // Remove existing file if any
                 try? FileManager.default.removeItem(at: exportURL)
