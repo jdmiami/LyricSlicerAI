@@ -9,7 +9,7 @@ public class LocalEngine: TranscriptionEngine {
     public func transcribeAudio(at audioFileURL: URL) async throws -> [WordSlice] {
         print("Starting Local Offline Transcription via WhisperKit on Neural Engine...")
         
-        let pipe = try await WhisperKit()
+        let pipe = try await WhisperKit(model: "openai/whisper-tiny")
         
         let anyResult = try await pipe.transcribe(audioPath: audioFileURL.path, decodeOptions: DecodingOptions(wordTimestamps: true)) as Any
         

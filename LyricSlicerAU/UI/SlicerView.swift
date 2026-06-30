@@ -216,8 +216,16 @@ public struct SlicerView: View {
                 // Remove existing file if any
                 try? FileManager.default.removeItem(at: exportURL)
                 
-                // Create a destination file using the source file's format settings
-                let destFile = try AVAudioFile(forWriting: exportURL, settings: sourceFile.fileFormat.settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+                // Create a destination file using standard WAV settings
+                let settings: [String: Any] = [
+                    AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                    AVSampleRateKey: format.sampleRate,
+                    AVNumberOfChannelsKey: format.channelCount,
+                    AVLinearPCMBitDepthKey: 16,
+                    AVLinearPCMIsFloatKey: false,
+                    AVLinearPCMIsBigEndianKey: false
+                ]
+                let destFile = try AVAudioFile(forWriting: exportURL, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
                 
                 let frameCapacity: AVAudioFrameCount = 44100 // Process in 1 second chunks
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
